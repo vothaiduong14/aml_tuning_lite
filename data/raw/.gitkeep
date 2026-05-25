@@ -1,0 +1,1 @@
+# Keep data/raw directory tracked by Git, while ignoring large CSV files.

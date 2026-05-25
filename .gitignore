@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+data/interim/*
+data/processed/*
+outputs/*
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!outputs/metrics/.gitkeep
+!outputs/charts/.gitkeep
+!outputs/reports/.gitkeep
+!outputs/models/.gitkeep
+!outputs/run_logs/.gitkeep
+
+# Environments and environments configs
+.pixi/
+.venv/
+venv/
+.vscode/
+
+# Large datasets
+data/raw/*
+!data/raw/.gitkeep
+

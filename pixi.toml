@@ -1,0 +1,43 @@
+[workspace]
+authors = ["vothaiduong14 <17621070+vothaiduong14@users.noreply.github.com>"]
+channels = ["conda-forge"]
+name = "aml-mvp"
+platforms = ["win-64"]
+version = "0.1.0"
+
+[activation.env]
+PYTHONPATH = "src"
+
+[tasks]
+test = "python -m pytest tests"
+validate-data = "python -m aml_mvp.cli validate-data --config config/data_config.yaml"
+create-splits = "python -m aml_mvp.cli create-splits --config config/data_config.yaml"
+run-rules = "python -m aml_mvp.cli run-rules --config config/rule_config.yaml"
+tune-rules = "python -m aml_mvp.cli tune-rules --config config/rule_config.yaml"
+build-features = "python -m aml_mvp.cli build-features --config config/model_config.yaml"
+train-model = "python -m aml_mvp.cli train-model --config config/model_config.yaml"
+prioritize-alerts = "python -m aml_mvp.cli prioritize-alerts --config config/model_config.yaml"
+build-report = "python -m aml_mvp.cli build-report --config config/report_config.yaml"
+extended-stress-test = "python -m aml_mvp.cli extended-stress-test --config config/extended_config.yaml"
+build-graph-features = "python -m aml_mvp.cli build-graph-features --config config/extended_config.yaml"
+train-extended-model = "python -m aml_mvp.cli train-extended-model --config config/extended_config.yaml"
+compare-models = "python -m aml_mvp.cli compare-models --config config/extended_config.yaml"
+run-graph-rules = "python -m aml_mvp.cli run-graph-rules --config config/extended_config.yaml"
+consolidate-cases = "python -m aml_mvp.cli consolidate-cases --config config/extended_config.yaml"
+explain-alerts = "python -m aml_mvp.cli explain-alerts --config config/extended_config.yaml"
+calibrate-scores = "python -m aml_mvp.cli calibrate-scores --config config/extended_config.yaml"
+build-extended-report = "python -m aml_mvp.cli build-extended-report --config config/extended_config.yaml"
+
+[dependencies]
+python = ">=3.13,<3.14"
+numpy = ">=2.3.3,<3"
+pandas = ">=2.3.2,<3"
+scikit-learn = ">=1.7.2,<2"
+matplotlib = ">=3.10.7,<4"
+pytest = ">=9.0.3,<10"
+pyarrow = ">=20,<23"
+jinja2 = ">=3.1,<4"
+networkx = ">=3.5,<4"
+lightgbm = ">=4.6,<5"
+shap = ">=0.48,<1"
+optuna = ">=4.3,<5"

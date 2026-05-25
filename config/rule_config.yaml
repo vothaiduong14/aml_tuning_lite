@@ -1,0 +1,57 @@
+artifacts:
+  transactions_path: data/processed/base_transactions_with_splits.parquet
+  rule_hits_path: data/processed/rule_hits.parquet
+  alerts_path: data/processed/alerts.parquet
+  rule_performance_path: outputs/metrics/rule_performance.csv
+  rule_overlap_path: outputs/metrics/rule_overlap_matrix.csv
+  tuning_candidates_path: outputs/metrics/tuning_candidates.csv
+  selected_thresholds_path: outputs/metrics/selected_thresholds.csv
+  tuning_audit_path: outputs/metrics/tuning_audit_log.json
+  tuned_rule_config_path: outputs/metrics/tuned_rule_config.json
+
+rules:
+  enabled: [R1_AMOUNT, R2_NOVELTY, R3_VELOCITY, R4_PASS_THROUGH, R5_FAN_IN, R6_FAN_OUT]
+  segmentation_fields: [payment_format, currency_pair]
+  fallback_percentile: 0.95
+  min_segment_transactions: 1000
+  min_segment_positives: 5
+  severity_scores: [low:1, medium:2, high:3, critical:4]
+  severity_order: [low, medium, high, critical]
+
+R1_AMOUNT:
+  percentile: 0.95
+  percentile_grid: [0.70, 0.85, 0.90, 0.95, 0.99]
+  severity: medium
+
+R2_NOVELTY:
+  require_cross_bank: true
+  severity: medium
+
+R3_VELOCITY:
+  window: 24h
+  count_threshold: 5
+  amount_percentile: 0.90
+  severity: high
+
+R4_PASS_THROUGH:
+  window: 24h
+  min_in_out_ratio: 0.80
+  severity: critical
+
+R5_FAN_IN:
+  window: 24h
+  min_unique_senders: 5
+  amount_percentile: 0.90
+  severity: high
+
+R6_FAN_OUT:
+  window: 24h
+  min_unique_receivers: 5
+  min_prior_unique_senders: 2
+  severity: high
+
+tuning:
+  rules: [R1_AMOUNT]
+  split: validation
+  min_recall_floor: 0.80
+  max_alert_rate: 1.00

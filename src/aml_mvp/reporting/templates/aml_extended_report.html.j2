@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #1f2933; margin: 32px; line-height: 1.45; }
+    h1, h2 { color: #0b1f33; }
+    section { margin-top: 28px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 13px; }
+    th, td { border: 1px solid #d8dee8; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #eef3f8; }
+    .meta { color: #536471; }
+    .chart { max-width: 900px; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <p class="meta">Dataset: {{ dataset_name }} | Generated: {{ generated_at }}</p>
+
+  <section>
+    <h2>Extended Summary</h2>
+    {{ headline_table | safe }}
+  </section>
+
+  <section>
+    <h2>LI-Only Stress Test</h2>
+    {{ stress_table | safe }}
+  </section>
+
+  <section>
+    <h2>Graph Feature Diagnostics</h2>
+    {{ graph_feature_table | safe }}
+  </section>
+
+  <section>
+    <h2>Graph Rule Results</h2>
+    {{ cycle_summary_table | safe }}
+  </section>
+
+  <section>
+    <h2>Case Consolidation</h2>
+    {{ case_metrics_table | safe }}
+  </section>
+
+  <section>
+    <h2>LightGBM and SHAP Explainability</h2>
+    <div class="chart">{{ shap_importance_chart | safe }}</div>
+    {{ reason_codes_table | safe }}
+  </section>
+
+  <section>
+    <h2>Model Comparison</h2>
+    {{ model_selection_table | safe }}
+    {{ model_comparison_table | safe }}
+    <h3>Extended Selected Features</h3>
+    {{ selected_features_table | safe }}
+    <h3>Extended Model Tuning Trials</h3>
+    {{ model_tuning_trials_table | safe }}
+  </section>
+
+  <section>
+    <h2>Calibration and Priority Bands</h2>
+    {{ priority_metrics_table | safe }}
+  </section>
+
+  <section>
+    <h2>Extended Limitations</h2>
+    <ul>
+      {% for limitation in limitations %}
+      <li>{{ limitation }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+</body>
+</html>

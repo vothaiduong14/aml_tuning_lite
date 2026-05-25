@@ -1,0 +1,17 @@
+data:
+  dataset_name: LI-Small
+  raw_path: data/raw/LI-Small_Trans.csv
+  interim_path: data/interim/base_transactions.parquet
+  processed_path: data/processed/base_transactions_with_splits.parquet
+  quality_report_path: outputs/metrics/data_quality_report.json
+  profile_report_path: outputs/metrics/data_profile.json
+  split_manifest_path: outputs/metrics/split_manifest.json
+  timezone: UTC
+splits:
+  method: temporal_ratio
+  train_ratio: 0.60
+  validation_ratio: 0.20
+  test_ratio: 0.20
+  train_label: train
+  validation_label: validation
+  test_label: test

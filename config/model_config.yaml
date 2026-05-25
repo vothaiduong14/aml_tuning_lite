@@ -1,0 +1,47 @@
+artifacts:
+  transactions_path: data/processed/base_transactions_with_splits.parquet
+  rule_hits_path: data/processed/rule_hits.parquet
+  alerts_path: data/processed/alerts.parquet
+  alert_features_path: data/processed/alert_features.parquet
+  feature_dictionary_path: outputs/metrics/feature_dictionary.csv
+  feature_quality_report_path: outputs/metrics/feature_quality_report.csv
+  scored_alerts_path: data/processed/scored_alerts.parquet
+  model_artifact_path: outputs/models/model.pkl
+  model_metrics_path: outputs/metrics/model_metrics.json
+  top_k_metrics_path: outputs/metrics/top_k_metrics.csv
+  feature_importance_path: outputs/metrics/feature_importance.csv
+  model_tuning_trials_path: outputs/metrics/model_tuning_trials.csv
+  selected_features_path: outputs/metrics/selected_features.csv
+  priority_alerts_path: data/processed/priority_alerts.parquet
+  band_summary_path: outputs/metrics/band_summary.csv
+  capacity_simulation_path: outputs/metrics/capacity_simulation.csv
+
+model:
+  population: alert_level
+  target: is_laundering
+  baseline_models: [logistic_regression]
+  champion_candidates: [sklearn_gradient_boosting]
+  eval_metrics: [pr_auc, roc_auc, precision_at_k, recall_at_k, lift_at_k]
+  k_values: [100, 500, 1000, 5000]
+  max_train_rows: 200000
+  random_seed: 42
+  imbalance_strategy: class_weight_undersample
+  negative_to_positive_ratio: 10
+  preserve_all_positives: true
+  sampling_random_seed: 42
+  feature_selection_enabled: true
+  feature_selection_method: model_importance_top_k
+  selected_feature_count: 25
+  tuning_enabled: true
+  tuning_backend: optuna
+  tuning_trials: 50
+  champion_selection_metric: precision_at_k
+  champion_selection_k: 1000
+
+triage:
+  priority_bands: [P1, P2, P3, P4]
+  p1_quantile: 0.99
+  p2_quantile: 0.95
+  p3_quantile: 0.80
+  critical_rules: [R4_PASS_THROUGH, R5_FAN_IN, R6_FAN_OUT]
+  capacity_k_values: [100, 500, 1000, 5000]

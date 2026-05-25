@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <style>
+    :root {
+      --ink: #1f2933;
+      --muted: #697386;
+      --line: #d8dee9;
+      --panel: #ffffff;
+      --bg: #f5f7fa;
+      --accent: #1f4e79;
+      --risk: #a61b1b;
+      --ok: #276749;
+    }
+    body { margin: 0; font-family: Arial, sans-serif; color: var(--ink); background: var(--bg); }
+    header { background: var(--accent); color: #fff; padding: 28px 36px; }
+    header h1 { margin: 0 0 8px; font-size: 28px; }
+    header p { margin: 0; color: #e8eef7; }
+    nav { position: sticky; top: 0; background: #fff; border-bottom: 1px solid var(--line); padding: 10px 36px; z-index: 2; }
+    nav a { color: var(--accent); text-decoration: none; margin-right: 16px; white-space: nowrap; font-size: 13px; }
+    main { max-width: 1240px; margin: 0 auto; padding: 24px 32px 48px; }
+    section { margin: 0 0 28px; }
+    h2 { font-size: 22px; margin: 0 0 12px; }
+    h3 { font-size: 16px; margin: 18px 0 8px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+    .metric-label { color: var(--muted); font-size: 13px; }
+    .metric-value { font-size: 24px; font-weight: 700; margin-top: 6px; color: var(--accent); }
+    .warning { border-left: 5px solid var(--risk); background: #fff7f7; padding: 12px 14px; }
+    .muted { color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; }
+    caption { caption-side: bottom; text-align: left; padding: 8px 0; color: var(--muted); }
+    th, td { border: 1px solid var(--line); padding: 7px 8px; vertical-align: top; }
+    th { background: #edf2f7; text-align: left; }
+    .kv-table th { width: 260px; }
+    svg { width: 100%; max-width: 900px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+    svg rect { fill: var(--accent); }
+    .chart-title { font-size: 15px; font-weight: 700; fill: var(--ink); }
+    .chart-label, .chart-value { font-size: 12px; fill: var(--ink); }
+    @media print {
+      nav { display: none; }
+      main { max-width: none; padding: 12px; }
+      section { page-break-inside: avoid; }
+      .card, svg { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{ title }}</h1>
+    <p>Dataset: {{ dataset_name }} | Generated: {{ generated_at }}</p>
+  </header>
+  <nav>
+    {% for section in sections %}
+      <a href="#{{ section|lower|replace(' ', '-') }}">{{ section }}</a>
+    {% endfor %}
+  </nav>
+  <main>
+    <section id="executive-summary">
+      <h2>Executive Summary</h2>
+      <div class="grid">
+        <div class="card"><div class="metric-label">Transactions</div><div class="metric-value">{{ headline.transactions }}</div></div>
+        <div class="card"><div class="metric-label">Label Rate</div><div class="metric-value">{{ "%.4f"|format(headline.label_rate) }}</div></div>
+        <div class="card"><div class="metric-label">Rule Recall</div><div class="metric-value">{{ "%.4f"|format(headline.rule_recall) }}</div></div>
+        <div class="card"><div class="metric-label">Model PR-AUC</div><div class="metric-value">{{ "%.4f"|format(headline.model_pr_auc) }}</div></div>
+        <div class="card"><div class="metric-label">P1 Alerts</div><div class="metric-value">{{ headline.p1_alerts }}</div></div>
+      </div>
+    </section>
+
+    <section id="dataset-profile">
+      <h2>Dataset Profile</h2>
+      {{ data_quality_table | safe }}
+      <h3>Temporal Splits</h3>
+      {{ split_table | safe }}
+      <h3>Payment Format Distribution</h3>
+      {{ payment_format_chart | safe }}
+    </section>
+
+    <section id="aml-coverage-matrix">
+      <h2>AML Coverage Matrix</h2>
+      {{ coverage_table | safe }}
+    </section>
+
+    <section id="rule-catalogue-and-tuning">
+      <h2>Rule Catalogue and Tuning</h2>
+      {{ rule_catalogue_table | safe }}
+      <h3>Selected Thresholds</h3>
+      {{ selected_thresholds_table | safe }}
+      <h3>Tuning Candidates</h3>
+      {{ tuning_candidates_table | safe }}
+    </section>
+
+    <section id="rule-performance-and-overlap">
+      <h2>Rule Performance and Overlap</h2>
+      {{ rule_performance_table | safe }}
+      <h3>Rule Overlap</h3>
+      {{ rule_overlap_table | safe }}
+    </section>
+
+    <section id="ml-triage">
+      <h2>ML Triage</h2>
+      {{ model_metrics_table | safe }}
+      <h3>Training Controls</h3>
+      {{ model_training_table | safe }}
+      <h3>Selected Features</h3>
+      {{ selected_features_table | safe }}
+      <h3>Model Tuning Trials</h3>
+      {{ model_tuning_trials_table | safe }}
+      <h3>Top-K Comparison</h3>
+      {{ top_k_table | safe }}
+    </section>
+
+    <section id="priority-queue-simulation">
+      <h2>Priority Queue Simulation</h2>
+      {{ band_summary_table | safe }}
+      <h3>Capacity Simulation</h3>
+      {{ capacity_table | safe }}
+    </section>
+
+    <section id="explainability-and-alert-examples">
+      <h2>Explainability and Alert Examples</h2>
+      {{ feature_importance_chart | safe }}
+      <h3>Feature Dictionary</h3>
+      {{ feature_dictionary_table | safe }}
+      <h3>Feature Quality</h3>
+      {{ feature_quality_table | safe }}
+    </section>
+
+    <section id="validation-and-limitations">
+      <h2>Validation and Limitations</h2>
+      {{ acceptance_checklist_table | safe }}
+      <div class="warning">
+        <h3>Limitations</h3>
+        <ul>
+          {% for limitation in limitations %}
+            <li>{{ limitation }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+
+    <section id="appendix">
+      <h2>Appendix</h2>
+      <h3>Run Manifest</h3>
+      {{ run_manifest_table | safe }}
+    </section>
+  </main>
+</body>
+</html>

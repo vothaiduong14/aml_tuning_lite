@@ -1,0 +1,91 @@
+project:
+  name: aml_tm_mvp_extended
+  dataset_name: LI-Small
+  hi_comparison_status: deferred_missing_dataset
+
+artifacts:
+  transactions_path: data/processed/base_transactions_with_splits.parquet
+  alerts_path: data/processed/alerts.parquet
+  rule_hits_path: data/processed/rule_hits.parquet
+  alert_features_path: data/processed/alert_features.parquet
+  extended_alert_features_path: data/processed/extended_alert_features.parquet
+  scored_alerts_path: data/processed/scored_alerts.parquet
+  extended_scored_alerts_path: data/processed/extended_scored_alerts.parquet
+  extended_model_artifact_path: outputs/models/extended_model.pkl
+  extended_model_metrics_path: outputs/extended/extended_model_metrics.json
+  extended_top_k_metrics_path: outputs/extended/extended_top_k_metrics.csv
+  extended_feature_importance_path: outputs/extended/extended_feature_importance.csv
+  extended_model_tuning_trials_path: outputs/extended/extended_model_tuning_trials.csv
+  extended_selected_features_path: outputs/extended/extended_selected_features.csv
+  model_comparison_path: outputs/extended/model_comparison.csv
+  model_selection_path: outputs/extended/model_selection.json
+  priority_alerts_path: data/processed/priority_alerts.parquet
+  rule_performance_path: outputs/metrics/rule_performance.csv
+  model_metrics_path: outputs/metrics/model_metrics.json
+  top_k_metrics_path: outputs/metrics/top_k_metrics.csv
+  stress_test_summary_path: outputs/extended/stress_test_summary.csv
+  graph_features_path: data/processed/graph_features.parquet
+  graph_feature_dictionary_path: outputs/extended/graph_feature_dictionary.csv
+  graph_rule_hits_path: data/processed/graph_rule_hits.parquet
+  cycle_summary_path: outputs/extended/cycle_summary.csv
+  consolidated_cases_path: data/processed/consolidated_cases.parquet
+  case_metrics_path: outputs/extended/case_metrics.csv
+  shap_values_path: data/processed/shap_values.parquet
+  reason_codes_path: outputs/extended/reason_codes.csv
+  shap_feature_importance_path: outputs/extended/shap_feature_importance.csv
+  calibrated_scores_path: data/processed/calibrated_scores.parquet
+  priority_band_metrics_path: outputs/extended/priority_band_metrics.csv
+  extended_report_path: outputs/reports/aml_extended_report.html
+
+graph:
+  pagerank_alpha: 0.85
+  cycle_max_length: 4
+  max_alert_rows: 50000
+  gather_scatter_min_degree: 3
+  gather_scatter_min_component_size: 4
+  cycle_rule_severity: high
+  gather_scatter_severity: high
+
+cases:
+  min_alerts_per_case: 1
+
+explainability:
+  max_explain_rows: 1000
+  top_reason_features: 3
+  random_seed: 42
+
+model:
+  population: alert_level
+  target: is_laundering
+  baseline_models: [logistic_regression]
+  champion_candidates: [sklearn_gradient_boosting]
+  eval_metrics: [pr_auc, roc_auc, precision_at_k, recall_at_k, lift_at_k]
+  k_values: [100, 500, 1000, 5000]
+  max_train_rows: 200000
+  random_seed: 42
+  imbalance_strategy: class_weight_undersample
+  negative_to_positive_ratio: 10
+  preserve_all_positives: true
+  sampling_random_seed: 42
+  feature_selection_enabled: true
+  feature_selection_method: model_importance_top_k
+  selected_feature_count: 25
+  tuning_enabled: true
+  tuning_backend: optuna
+  tuning_trials: 50
+  champion_selection_metric: precision_at_k
+  champion_selection_k: 1000
+
+model_comparison:
+  primary_metric: precision_at_k
+  primary_k: 1000
+  min_delta: 0.0
+
+calibration:
+  method: isotonic
+  fallback_method: sigmoid
+  split: validation
+  p1_quantile: 0.99
+  p2_quantile: 0.95
+  p3_quantile: 0.80
+  critical_rules: [R4_PASS_THROUGH, R5_FAN_IN, R6_FAN_OUT, GR1_GATHER_SCATTER, GR2_CYCLE_CANDIDATE]

@@ -1,0 +1,6 @@
+project:
+  name: aml_rules_ml_triage_mvp
+  run_id: auto
+  random_seed: 42
+  output_dir: outputs
+

@@ -1,0 +1,26 @@
+report:
+  format: html
+  output_file: outputs/reports/aml_mvp_report.html
+  run_manifest_path: outputs/run_logs/run_manifest.json
+  acceptance_checklist_path: outputs/metrics/final_acceptance_checklist.csv
+  self_contained: true
+  include_print_css: true
+
+artifacts:
+  data_quality_report_path: outputs/metrics/data_quality_report.json
+  data_profile_path: outputs/metrics/data_profile.json
+  split_manifest_path: outputs/metrics/split_manifest.json
+  rule_performance_path: outputs/metrics/rule_performance.csv
+  rule_overlap_path: outputs/metrics/rule_overlap_matrix.csv
+  tuning_candidates_path: outputs/metrics/tuning_candidates.csv
+  selected_thresholds_path: outputs/metrics/selected_thresholds.csv
+  tuning_audit_path: outputs/metrics/tuning_audit_log.json
+  feature_dictionary_path: outputs/metrics/feature_dictionary.csv
+  feature_quality_report_path: outputs/metrics/feature_quality_report.csv
+  model_metrics_path: outputs/metrics/model_metrics.json
+  top_k_metrics_path: outputs/metrics/top_k_metrics.csv
+  feature_importance_path: outputs/metrics/feature_importance.csv
+  model_tuning_trials_path: outputs/metrics/model_tuning_trials.csv
+  selected_features_path: outputs/metrics/selected_features.csv
+  band_summary_path: outputs/metrics/band_summary.csv
+  capacity_simulation_path: outputs/metrics/capacity_simulation.csv
