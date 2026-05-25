@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -94,6 +96,35 @@ def main() -> None:
     extended_report_parser.add_argument("--config", required=True)
     _add_logging_args(extended_report_parser)
 
+    workflow_parser = subparsers.add_parser("run-workflow")
+    workflow_parser.add_argument(
+        "--preset",
+        default="full",
+        choices=["mvp", "extended", "full"],
+        help="Workflow preset to run when --steps is not provided.",
+    )
+    workflow_parser.add_argument(
+        "--steps",
+        default=None,
+        help="Comma-separated step names to run in the requested order.",
+    )
+    workflow_parser.add_argument(
+        "--from-step",
+        default=None,
+        help="Start at this step within the selected preset.",
+    )
+    workflow_parser.add_argument(
+        "--to-step",
+        default=None,
+        help="Stop after this step within the selected preset.",
+    )
+    workflow_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the selected commands without running them.",
+    )
+    workflow_parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+
     args = parser.parse_args()
 
     if args.command == "validate-data":
@@ -130,6 +161,8 @@ def main() -> None:
         _calibrate_scores(Path(args.config), args)
     elif args.command == "build-extended-report":
         _build_extended_report(Path(args.config), args)
+    elif args.command == "run-workflow":
+        _run_workflow(args)
 
 
 def _add_logging_args(parser: argparse.ArgumentParser) -> None:
@@ -515,6 +548,87 @@ def _build_extended_report(config_path: Path, args: argparse.Namespace) -> None:
     output = render_extended_report(context, _resolve(root, artifacts["extended_report_path"]))
     logger.info("Wrote extended HTML report path=%s", output)
     logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
+
+
+WORKFLOW_STEPS = {
+    "validate-data": ["validate-data", "--config", "config/data_config.yaml"],
+    "create-splits": ["create-splits", "--config", "config/data_config.yaml"],
+    "run-rules": ["run-rules", "--config", "config/rule_config.yaml"],
+    "tune-rules": ["tune-rules", "--config", "config/rule_config.yaml"],
+    "build-features": ["build-features", "--config", "config/model_config.yaml"],
+    "train-model": ["train-model", "--config", "config/model_config.yaml"],
+    "prioritize-alerts": ["prioritize-alerts", "--config", "config/model_config.yaml"],
+    "build-report": ["build-report", "--config", "config/report_config.yaml"],
+    "extended-stress-test": ["extended-stress-test", "--config", "config/extended_config.yaml"],
+    "build-graph-features": ["build-graph-features", "--config", "config/extended_config.yaml"],
+    "run-graph-rules": ["run-graph-rules", "--config", "config/extended_config.yaml"],
+    "train-extended-model": ["train-extended-model", "--config", "config/extended_config.yaml"],
+    "compare-models": ["compare-models", "--config", "config/extended_config.yaml"],
+    "consolidate-cases": ["consolidate-cases", "--config", "config/extended_config.yaml"],
+    "explain-alerts": ["explain-alerts", "--config", "config/extended_config.yaml"],
+    "calibrate-scores": ["calibrate-scores", "--config", "config/extended_config.yaml"],
+    "build-extended-report": ["build-extended-report", "--config", "config/extended_config.yaml"],
+}
+
+WORKFLOW_PRESETS = {
+    "mvp": [
+        "validate-data",
+        "create-splits",
+        "run-rules",
+        "tune-rules",
+        "build-features",
+        "train-model",
+        "prioritize-alerts",
+        "build-report",
+    ],
+    "extended": [
+        "extended-stress-test",
+        "build-graph-features",
+        "run-graph-rules",
+        "train-extended-model",
+        "compare-models",
+        "consolidate-cases",
+        "explain-alerts",
+        "calibrate-scores",
+        "build-extended-report",
+    ],
+}
+WORKFLOW_PRESETS["full"] = WORKFLOW_PRESETS["mvp"] + WORKFLOW_PRESETS["extended"]
+
+
+def _run_workflow(args: argparse.Namespace) -> None:
+    steps = _selected_workflow_steps(args)
+    print("Selected workflow steps:")
+    for index, step in enumerate(steps, start=1):
+        command = [sys.executable, "-m", "aml_mvp.cli", *WORKFLOW_STEPS[step], "--log-level", args.log_level]
+        print(f"{index}. {step}: {' '.join(command)}")
+    if args.dry_run:
+        return
+    for step in steps:
+        command = [sys.executable, "-m", "aml_mvp.cli", *WORKFLOW_STEPS[step], "--log-level", args.log_level]
+        print(f"\n=== Running {step} ===", flush=True)
+        subprocess.run(command, check=True)
+
+
+def _selected_workflow_steps(args: argparse.Namespace) -> list[str]:
+    if args.steps:
+        steps = [step.strip() for step in args.steps.split(",") if step.strip()]
+    else:
+        steps = list(WORKFLOW_PRESETS[args.preset])
+
+    unknown = [step for step in steps if step not in WORKFLOW_STEPS]
+    if unknown:
+        raise ValueError(f"Unknown workflow step(s): {', '.join(unknown)}")
+
+    if args.from_step:
+        if args.from_step not in steps:
+            raise ValueError(f"--from-step must be one of the selected steps: {args.from_step}")
+        steps = steps[steps.index(args.from_step) :]
+    if args.to_step:
+        if args.to_step not in steps:
+            raise ValueError(f"--to-step must be one of the selected steps: {args.to_step}")
+        steps = steps[: steps.index(args.to_step) + 1]
+    return steps
 
 
 def _resolve(root: Path, value: str) -> Path:

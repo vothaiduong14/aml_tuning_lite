@@ -27,6 +27,7 @@ consolidate-cases = "python -m aml_mvp.cli consolidate-cases --config config/ext
 explain-alerts = "python -m aml_mvp.cli explain-alerts --config config/extended_config.yaml"
 calibrate-scores = "python -m aml_mvp.cli calibrate-scores --config config/extended_config.yaml"
 build-extended-report = "python -m aml_mvp.cli build-extended-report --config config/extended_config.yaml"
+run-workflow = "python -m aml_mvp.cli run-workflow"
 
 [dependencies]
 python = ">=3.13,<3.14"
