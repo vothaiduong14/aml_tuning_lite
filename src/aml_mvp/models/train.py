@@ -53,6 +53,7 @@ def train_and_score_alerts(
             "method": model_config.get("feature_selection_method", "model_importance_top_k"),
             "selected_feature_count": len(selected_features),
             "selected_features": selected_features,
+            "force_include_feature_prefixes": model_config.get("force_include_feature_prefixes", []),
         },
         "tuning": tuning_metadata,
         "champion_selection": champion_selection,
@@ -259,9 +260,13 @@ def select_model_features(
         .reset_index(drop=True)
     )
     ranking["selection_rank"] = ranking.index + 1
-    ranking["selected"] = ranking["selection_rank"].le(top_k)
+    forced_prefixes = [str(prefix) for prefix in model_config.get("force_include_feature_prefixes", [])]
+    ranking["forced_include"] = ranking["feature_name"].map(
+        lambda feature_name: any(str(feature_name).startswith(prefix) for prefix in forced_prefixes)
+    )
+    ranking["selected"] = ranking["selection_rank"].le(top_k) | ranking["forced_include"]
     selected = ranking.loc[ranking["selected"], "feature_name"].tolist()
-    return selected, ranking[["feature_name", "selection_rank", "selection_importance", "selected"]]
+    return selected, ranking[["feature_name", "selection_rank", "selection_importance", "forced_include", "selected"]]
 
 
 def select_champion_model(

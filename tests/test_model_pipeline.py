@@ -107,6 +107,28 @@ def test_feature_selection_caps_selected_feature_count() -> None:
     assert table["selected"].sum() == 3
 
 
+def test_feature_selection_force_includes_graph_features() -> None:
+    frame = _feature_selection_frame(row_count=30, feature_count=8)
+    frame["feature_graph_component_size"] = 1
+    frame["feature_graph_cycle_involvement"] = 0
+    feature_columns = [column for column in frame.columns if column.startswith("feature_")]
+
+    selected, table = select_model_features(
+        frame,
+        feature_columns,
+        {
+            "feature_selection_enabled": True,
+            "selected_feature_count": 3,
+            "force_include_feature_prefixes": ["feature_graph_"],
+            "random_seed": 42,
+        },
+    )
+
+    assert "feature_graph_component_size" in selected
+    assert "feature_graph_cycle_involvement" in selected
+    assert table.loc[table["feature_name"].eq("feature_graph_component_size"), "forced_include"].iloc[0]
+
+
 def test_train_and_score_single_class_uses_dummy_fallback() -> None:
     features, _, _ = build_alert_feature_matrix(transactions(), alerts(), rule_hits())
     features["target"] = 0
