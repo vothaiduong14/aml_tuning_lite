@@ -24,6 +24,3 @@ venv/
 data/raw/*
 !data/raw/.gitkeep
 
-# Local reports
-aml_extended_report.html
-
