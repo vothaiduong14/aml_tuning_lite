@@ -23,8 +23,13 @@ artifacts:
   rule_performance_path: outputs/metrics/rule_performance.csv
   model_metrics_path: outputs/metrics/model_metrics.json
   top_k_metrics_path: outputs/metrics/top_k_metrics.csv
+  selected_features_path: outputs/metrics/selected_features.csv
   stress_test_summary_path: outputs/extended/stress_test_summary.csv
+  temporal_stress_summary_path: outputs/extended/temporal_stress_summary.csv
+  segment_stress_summary_path: outputs/extended/segment_stress_summary.csv
+  hi_li_stress_summary_path: outputs/extended/hi_li_stress_summary.csv
   graph_features_path: data/processed/graph_features.parquet
+  graph_features_v2_path: data/processed/graph_features_v2.parquet
   graph_feature_dictionary_path: outputs/extended/graph_feature_dictionary.csv
   graph_rule_hits_path: data/processed/graph_rule_hits.parquet
   cycle_summary_path: outputs/extended/cycle_summary.csv
@@ -57,8 +62,9 @@ explainability:
 model:
   population: alert_level
   target: is_laundering
-  baseline_models: [logistic_regression]
-  champion_candidates: [sklearn_gradient_boosting]
+  model_candidates: [lightgbm, xgboost]
+  baseline_models: [lightgbm]
+  champion_candidates: [xgboost]
   eval_metrics: [pr_auc, roc_auc, precision_at_k, recall_at_k, lift_at_k]
   k_values: [100, 500, 1000, 5000]
   max_train_rows: 200000
@@ -69,8 +75,12 @@ model:
   sampling_random_seed: 42
   feature_selection_enabled: true
   feature_selection_method: model_importance_top_k
-  selected_feature_count: 25
-  force_include_feature_prefixes: [feature_graph_]
+  selected_feature_count: 40
+  feature_selector_model: lightgbm
+  force_include_feature_prefixes:
+    - feature_graph_sender_
+    - feature_graph_receiver_
+    - feature_graph_component_size
   tuning_enabled: true
   tuning_backend: optuna
   tuning_trials: 50
@@ -89,4 +99,29 @@ calibration:
   p1_quantile: 0.99
   p2_quantile: 0.95
   p3_quantile: 0.80
-  critical_rules: [R4_PASS_THROUGH, R5_FAN_IN, R6_FAN_OUT, GR1_GATHER_SCATTER, GR2_CYCLE_CANDIDATE]
+  critical_rules: [R4_PASS_THROUGH, R5_FAN_IN, R6_FAN_OUT, GR1_GATHER_SCATTER, GR1_GATHER_SCATTER_V2]
+
+scoring:
+  calibrated_probability_column: calibrated_score
+  risk_score_column: risk_score_1000
+  risk_score_method: percentile_rank
+  risk_score_min: 0
+  risk_score_max: 1000
+
+stress_testing:
+  hi_small_path: data/raw/HI-Small_Trans.csv
+  hi_comparison_required: false
+  li_temporal_stress:
+    enabled: true
+    test_a_fraction: 0.5
+    metrics: [precision_at_k, recall_at_k, pr_auc, alert_rate]
+    k_values: [100, 500, 1000]
+  segment_stress:
+    enabled: true
+    min_segment_alerts: 10
+    segments:
+      - payment_format
+      - currency_pair
+      - cross_bank_flag
+      - amount_bucket
+      - graph_degree_bucket

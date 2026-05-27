@@ -24,3 +24,28 @@ artifacts:
   selected_features_path: outputs/metrics/selected_features.csv
   band_summary_path: outputs/metrics/band_summary.csv
   capacity_simulation_path: outputs/metrics/capacity_simulation.csv
+  rule_contribution_path: outputs/metrics/rule_alert_contribution.csv
+  rule_volume_recommendations_path: outputs/metrics/rule_volume_recommendations.csv
+  priority_band_summary_path: outputs/metrics/priority_band_summary.csv
+  daily_capacity_simulation_path: outputs/metrics/daily_capacity_simulation.csv
+  graph_ablation_results_path: outputs/metrics/graph_ablation_results.csv
+  case_quality_metrics_path: outputs/metrics/case_quality_metrics.csv
+  alert_reason_codes_path: outputs/metrics/alert_reason_codes.csv
+  model_comparison_path: outputs/extended/model_comparison.csv
+  stress_test_summary_path: outputs/extended/stress_test_summary.csv
+  temporal_stress_summary_path: outputs/extended/temporal_stress_summary.csv
+  segment_stress_summary_path: outputs/extended/segment_stress_summary.csv
+  champion_decision_path: outputs/metrics/champion_challenger_decision.json
+  traffic_light_findings_path: outputs/metrics/traffic_light_findings.csv
+  remediation_report_path: outputs/reports/aml_extended_remediation_report.html
+
+remediation_report:
+  output_file: outputs/reports/aml_extended_remediation_report.html
+  include_sections:
+    - executive_summary
+    - alert_band_sizing
+    - graph_diagnostics
+    - case_consolidation
+    - champion_challenger
+    - explainability
+    - traffic_lights

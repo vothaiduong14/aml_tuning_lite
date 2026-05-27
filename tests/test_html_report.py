@@ -42,6 +42,17 @@ def test_report_context_reconciles_headline_metrics(tmp_path) -> None:
     assert context["headline"]["p1_alerts"] == 2
 
 
+def test_report_context_tolerates_empty_optional_csv(tmp_path) -> None:
+    config = _write_report_artifacts(tmp_path)
+    empty_path = tmp_path / "outputs" / "metrics" / "model_tuning_trials.csv"
+    empty_path.write_text("", encoding="utf-8")
+    config["artifacts"]["model_tuning_trials_path"] = "outputs/metrics/model_tuning_trials.csv"
+
+    context = build_report_context(config, tmp_path)
+
+    assert "model_tuning_trials_table" in context
+
+
 def _write_report_artifacts(tmp_path):
     metrics = tmp_path / "outputs" / "metrics"
     metrics.mkdir(parents=True)
@@ -123,4 +134,3 @@ def _write_report_artifacts(tmp_path):
             "capacity_simulation_path": "outputs/metrics/capacity_simulation.csv",
         },
     }
-

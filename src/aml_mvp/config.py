@@ -12,13 +12,22 @@ from typing import Any
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
-    """Load a simple two-level YAML config file.
+    """Load a YAML config file.
 
-    Supported values are strings, ints, floats, booleans, and bracket lists.
-    This is deliberately narrow; add PyYAML later if configs become complex.
+    PyYAML is available in the Pixi environment and is required for the
+    remediation v2 configs. The fallback keeps older shallow configs readable
+    in very small environments.
     """
 
     config_path = Path(path)
+    try:
+        import yaml
+
+        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        return loaded or {}
+    except ImportError:
+        pass
+
     result: dict[str, Any] = {}
     current_section: str | None = None
 
@@ -82,4 +91,3 @@ def project_root_from_config(config_path: str | Path) -> Path:
 
     path = Path(config_path).resolve()
     return path.parent.parent
-

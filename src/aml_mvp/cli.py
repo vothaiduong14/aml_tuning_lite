@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from aml_mvp.data.profile import profile_transactions
 from aml_mvp.data.quality_checks import write_quality_report
 from aml_mvp.data.splits import create_temporal_splits, write_split_manifest
 from aml_mvp.features.feature_matrix import build_alert_feature_matrix, write_feature_outputs
-from aml_mvp.logging_utils import setup_logging
+from aml_mvp.logging_utils import resolve_log_file, setup_logging
 from aml_mvp.models.train import train_and_score_alerts, write_model_outputs
 from aml_mvp.rules.rule_engine import run_rule_engine, write_rule_outputs
 from aml_mvp.rules.rule_tuning import tune_rules, write_tuning_outputs
@@ -100,7 +101,7 @@ def main() -> None:
     workflow_parser.add_argument(
         "--preset",
         default="full",
-        choices=["mvp", "extended", "full"],
+        choices=["mvp", "extended", "remediation", "full"],
         help="Workflow preset to run when --steps is not provided.",
     )
     workflow_parser.add_argument(
@@ -124,6 +125,52 @@ def main() -> None:
         help="Print the selected commands without running them.",
     )
     workflow_parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    workflow_parser.add_argument(
+        "--log-file",
+        default=None,
+        help="Shared workflow log file. Defaults to outputs/run_logs/workflow_<preset>_<timestamp>.log.",
+    )
+
+    diagnose_parser = subparsers.add_parser("diagnose-alerts")
+    diagnose_parser.add_argument("--config", required=True)
+    _add_logging_args(diagnose_parser)
+
+    band_parser = subparsers.add_parser("rebuild-priority-bands")
+    band_parser.add_argument("--config", required=True)
+    _add_logging_args(band_parser)
+
+    graph_v2_parser = subparsers.add_parser("build-graph-v2")
+    graph_v2_parser.add_argument("--config", required=True)
+    _add_logging_args(graph_v2_parser)
+
+    graph_ablation_parser = subparsers.add_parser("run-graph-ablation")
+    graph_ablation_parser.add_argument("--config", required=True)
+    _add_logging_args(graph_ablation_parser)
+
+    cases_v2_parser = subparsers.add_parser("consolidate-cases-v2")
+    cases_v2_parser.add_argument("--config", required=True)
+    _add_logging_args(cases_v2_parser)
+
+    reason_parser = subparsers.add_parser("generate-reason-codes")
+    reason_parser.add_argument("--config", required=True)
+    _add_logging_args(reason_parser)
+
+    remediation_report_parser = subparsers.add_parser("build-remediation-report")
+    remediation_report_parser.add_argument("--config", required=True)
+    _add_logging_args(remediation_report_parser)
+
+    remediation_parser = subparsers.add_parser("run-remediation")
+    remediation_parser.add_argument("--config", required=True)
+    remediation_parser.add_argument("--steps", default=None)
+    remediation_parser.add_argument("--skip", default=None)
+    remediation_parser.add_argument("--from-step", default=None)
+    remediation_parser.add_argument("--dry-run", action="store_true")
+    remediation_parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    remediation_parser.add_argument(
+        "--log-file",
+        default=None,
+        help="Shared remediation log file. Defaults to outputs/run_logs/remediation_<timestamp>.log.",
+    )
 
     args = parser.parse_args()
 
@@ -163,6 +210,22 @@ def main() -> None:
         _build_extended_report(Path(args.config), args)
     elif args.command == "run-workflow":
         _run_workflow(args)
+    elif args.command == "diagnose-alerts":
+        _diagnose_alerts(Path(args.config), args)
+    elif args.command == "rebuild-priority-bands":
+        _rebuild_priority_bands(Path(args.config), args)
+    elif args.command == "build-graph-v2":
+        _build_graph_v2(Path(args.config), args)
+    elif args.command == "run-graph-ablation":
+        _run_graph_ablation(Path(args.config), args)
+    elif args.command == "consolidate-cases-v2":
+        _consolidate_cases_v2(Path(args.config), args)
+    elif args.command == "generate-reason-codes":
+        _generate_reason_codes(Path(args.config), args)
+    elif args.command == "build-remediation-report":
+        _build_remediation_report(Path(args.config), args)
+    elif args.command == "run-remediation":
+        _run_remediation(args)
 
 
 def _add_logging_args(parser: argparse.ArgumentParser) -> None:
@@ -343,7 +406,13 @@ def _build_report(config_path: Path, args: argparse.Namespace) -> None:
 
 
 def _extended_stress_test(config_path: Path, args: argparse.Namespace) -> None:
-    from aml_mvp.extended.stress_testing import build_stress_test_summary, write_stress_summary
+    from aml_mvp.extended.stress_testing import (
+        build_segment_stress_summary,
+        build_stress_test_summary,
+        build_temporal_stress_summary,
+        write_extended_stress_outputs,
+        write_stress_summary,
+    )
 
     config = load_config(config_path)
     root = project_root_from_config(config_path)
@@ -356,8 +425,13 @@ def _extended_stress_test(config_path: Path, args: argparse.Namespace) -> None:
     rule_hits = read_dataframe(_resolve(root, artifacts["rule_hits_path"]))
     priority_alerts = read_dataframe(_resolve(root, artifacts["priority_alerts_path"]))
     summary = build_stress_test_summary(transactions, alerts, rule_hits, priority_alerts, config)
+    temporal = build_temporal_stress_summary(priority_alerts, config)
+    segment = build_segment_stress_summary(transactions, priority_alerts, config)
     output = write_stress_summary(summary, _resolve(root, artifacts["stress_test_summary_path"]))
+    extra_outputs = write_extended_stress_outputs(temporal, segment, artifacts, root)
     logger.info("Wrote stress test summary path=%s rows=%s", output, len(summary))
+    for key, path in extra_outputs.items():
+        logger.info("Wrote %s path=%s", key, path)
     logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
 
 
@@ -390,6 +464,8 @@ def _build_graph_features(config_path: Path, args: argparse.Namespace) -> None:
 
 
 def _train_extended_model(config_path: Path, args: argparse.Namespace) -> None:
+    from aml_mvp.graph.graph_features import merge_graph_feature_columns_into_alert_matrix
+
     config = load_config(config_path)
     root = project_root_from_config(config_path)
     logger, log_path = setup_logging("train-extended-model", root, args.log_level, args.log_file)
@@ -398,6 +474,20 @@ def _train_extended_model(config_path: Path, args: argparse.Namespace) -> None:
     logger.info("Command started config=%s project_root=%s log_file=%s", config_path, root, log_path)
     features_path = _resolve(root, artifacts["extended_alert_features_path"])
     features = read_dataframe(features_path)
+    graph_v2_path_value = artifacts.get("graph_features_v2_path")
+    if graph_v2_path_value:
+        graph_v2_path = _resolve(root, graph_v2_path_value)
+        if graph_v2_path.exists() or graph_v2_path.with_suffix(graph_v2_path.suffix + ".pkl").exists():
+            graph_v2 = read_dataframe(graph_v2_path)
+            before_columns = set(features.columns)
+            features = merge_graph_feature_columns_into_alert_matrix(features, graph_v2)
+            added_columns = sorted(set(features.columns) - before_columns)
+            logger.info(
+                "Merged graph v2 features into extended training frame path=%s graph_rows=%s added_feature_columns=%s",
+                graph_v2_path,
+                len(graph_v2),
+                added_columns,
+            )
     logger.info("Loaded extended alert features path=%s rows=%s split_counts=%s", features_path, len(features), _split_counts(features))
     scored_alerts, metrics, top_k_metrics, feature_importance, model_artifact = train_and_score_alerts(features, config)
     outputs = write_model_outputs(
@@ -550,6 +640,99 @@ def _build_extended_report(config_path: Path, args: argparse.Namespace) -> None:
     logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
 
 
+def _diagnose_alerts(config_path: Path, args: argparse.Namespace) -> None:
+    from aml_mvp.diagnostics.alert_waterfall import build_alert_waterfall
+    from aml_mvp.diagnostics.rule_contribution import build_rule_contribution
+
+    config = load_config(config_path)
+    root = project_root_from_config(config_path)
+    logger, log_path = setup_logging("diagnose-alerts", root, args.log_level, args.log_file)
+    start = time.perf_counter()
+    logger.info("Command started config=%s project_root=%s log_file=%s", config_path, root, log_path)
+    contribution = build_rule_contribution(config, root, logger=logger)
+    waterfall = build_alert_waterfall(config, root, logger=logger)
+    logger.info("Built diagnostics rule_rows=%s waterfall_rows=%s", len(contribution), len(waterfall["waterfall"]))
+    logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
+
+
+def _rebuild_priority_bands(config_path: Path, args: argparse.Namespace) -> None:
+    from aml_mvp.calibration.band_sizing import rebuild_priority_bands
+
+    config = load_config(config_path)
+    root = project_root_from_config(config_path)
+    logger, log_path = setup_logging("rebuild-priority-bands", root, args.log_level, args.log_file)
+    start = time.perf_counter()
+    logger.info("Command started config=%s project_root=%s log_file=%s", config_path, root, log_path)
+    priority = rebuild_priority_bands(config, root, logger=logger)
+    logger.info("Rebuilt priority bands rows=%s band_counts=%s", len(priority), priority["priority_band_v2"].value_counts().to_dict())
+    logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
+
+
+def _build_graph_v2(config_path: Path, args: argparse.Namespace) -> None:
+    from aml_mvp.graph.graph_features_v2 import build_graph_features_v2
+
+    config = load_config(config_path)
+    root = project_root_from_config(config_path)
+    logger, log_path = setup_logging("build-graph-v2", root, args.log_level, args.log_file)
+    start = time.perf_counter()
+    logger.info("Command started config=%s project_root=%s log_file=%s", config_path, root, log_path)
+    features = build_graph_features_v2(config, root, logger=logger)
+    logger.info("Built graph v2 rows=%s", len(features))
+    logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
+
+
+def _run_graph_ablation(config_path: Path, args: argparse.Namespace) -> None:
+    from aml_mvp.graph.graph_ablation import run_graph_ablation
+
+    config = load_config(config_path)
+    root = project_root_from_config(config_path)
+    logger, log_path = setup_logging("run-graph-ablation", root, args.log_level, args.log_file)
+    start = time.perf_counter()
+    logger.info("Command started config=%s project_root=%s log_file=%s", config_path, root, log_path)
+    results = run_graph_ablation(config, root, logger=logger)
+    logger.info("Graph ablation completed rows=%s", len(results))
+    logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
+
+
+def _consolidate_cases_v2(config_path: Path, args: argparse.Namespace) -> None:
+    from aml_mvp.cases.case_consolidation_v2 import consolidate_cases_v2
+
+    config = load_config(config_path)
+    root = project_root_from_config(config_path)
+    logger, log_path = setup_logging("consolidate-cases-v2", root, args.log_level, args.log_file)
+    start = time.perf_counter()
+    logger.info("Command started config=%s project_root=%s log_file=%s", config_path, root, log_path)
+    outputs = consolidate_cases_v2(config, root, logger=logger)
+    logger.info("Consolidated cases v2 cases=%s mappings=%s", len(outputs["cases"]), len(outputs["mapping"]))
+    logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
+
+
+def _generate_reason_codes(config_path: Path, args: argparse.Namespace) -> None:
+    from aml_mvp.explainability.shap_reason_mapper import generate_alert_reason_codes
+
+    config = load_config(config_path)
+    root = project_root_from_config(config_path)
+    logger, log_path = setup_logging("generate-reason-codes", root, args.log_level, args.log_file)
+    start = time.perf_counter()
+    logger.info("Command started config=%s project_root=%s log_file=%s", config_path, root, log_path)
+    reasons = generate_alert_reason_codes(config, root, logger=logger)
+    logger.info("Generated reason codes rows=%s", len(reasons))
+    logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
+
+
+def _build_remediation_report(config_path: Path, args: argparse.Namespace) -> None:
+    from aml_mvp.reporting.remediation_report import build_remediation_report
+
+    config = load_config(config_path)
+    root = project_root_from_config(config_path)
+    logger, log_path = setup_logging("build-remediation-report", root, args.log_level, args.log_file)
+    start = time.perf_counter()
+    logger.info("Command started config=%s project_root=%s log_file=%s", config_path, root, log_path)
+    output = build_remediation_report(config, root, logger=logger)
+    logger.info("Wrote remediation report path=%s", output)
+    logger.info("Command completed elapsed=%.2fs", time.perf_counter() - start)
+
+
 WORKFLOW_STEPS = {
     "validate-data": ["validate-data", "--config", "config/data_config.yaml"],
     "create-splits": ["create-splits", "--config", "config/data_config.yaml"],
@@ -568,6 +751,13 @@ WORKFLOW_STEPS = {
     "explain-alerts": ["explain-alerts", "--config", "config/extended_config.yaml"],
     "calibrate-scores": ["calibrate-scores", "--config", "config/extended_config.yaml"],
     "build-extended-report": ["build-extended-report", "--config", "config/extended_config.yaml"],
+    "diagnose-alerts": ["diagnose-alerts", "--config", "config/priority_band_config.yaml"],
+    "rebuild-priority-bands": ["rebuild-priority-bands", "--config", "config/priority_band_config.yaml"],
+    "build-graph-v2": ["build-graph-v2", "--config", "config/graph_rule_config.yaml"],
+    "run-graph-ablation": ["run-graph-ablation", "--config", "config/graph_rule_config.yaml"],
+    "consolidate-cases-v2": ["consolidate-cases-v2", "--config", "config/case_consolidation_config.yaml"],
+    "generate-reason-codes": ["generate-reason-codes", "--config", "config/reason_code_dictionary.yaml"],
+    "build-remediation-report": ["build-remediation-report", "--config", "config/report_config.yaml"],
 }
 
 WORKFLOW_PRESETS = {
@@ -592,20 +782,34 @@ WORKFLOW_PRESETS = {
         "calibrate-scores",
         "build-extended-report",
     ],
+    "remediation": [
+        "diagnose-alerts",
+        "rebuild-priority-bands",
+        "build-graph-v2",
+        "run-graph-ablation",
+        "train-extended-model",
+        "compare-models",
+        "consolidate-cases-v2",
+        "generate-reason-codes",
+        "build-extended-report",
+        "build-remediation-report",
+    ],
 }
-WORKFLOW_PRESETS["full"] = WORKFLOW_PRESETS["mvp"] + WORKFLOW_PRESETS["extended"]
+WORKFLOW_PRESETS["full"] = WORKFLOW_PRESETS["mvp"] + WORKFLOW_PRESETS["extended"] + WORKFLOW_PRESETS["remediation"]
 
 
 def _run_workflow(args: argparse.Namespace) -> None:
     steps = _selected_workflow_steps(args)
+    log_path = _shared_workflow_log_path(args, "workflow")
     print("Selected workflow steps:")
+    print(f"Combined log file: {log_path}")
     for index, step in enumerate(steps, start=1):
-        command = [sys.executable, "-m", "aml_mvp.cli", *WORKFLOW_STEPS[step], "--log-level", args.log_level]
+        command = _workflow_command(step, args.log_level, log_path)
         print(f"{index}. {step}: {' '.join(command)}")
     if args.dry_run:
         return
     for step in steps:
-        command = [sys.executable, "-m", "aml_mvp.cli", *WORKFLOW_STEPS[step], "--log-level", args.log_level]
+        command = _workflow_command(step, args.log_level, log_path)
         print(f"\n=== Running {step} ===", flush=True)
         subprocess.run(command, check=True)
 
@@ -629,6 +833,112 @@ def _selected_workflow_steps(args: argparse.Namespace) -> list[str]:
             raise ValueError(f"--to-step must be one of the selected steps: {args.to_step}")
         steps = steps[: steps.index(args.to_step) + 1]
     return steps
+
+
+def _run_remediation(args: argparse.Namespace) -> None:
+    config_path = Path(args.config)
+    config = load_config(config_path)
+    root = project_root_from_config(config_path)
+    workflow = dict(config.get("workflow", {}))
+    step_config = dict(config.get("steps", {}))
+    default_steps = list(workflow.get("default_steps", WORKFLOW_PRESETS["remediation"]))
+    steps = _select_remediation_steps(default_steps, args)
+    status_path = _resolve(root, workflow.get("status_path", "outputs/metrics/remediation_workflow_status.json"))
+    continue_on_error = bool(workflow.get("continue_on_error", False))
+    log_path = _shared_workflow_log_path(args, "remediation")
+    statuses: list[dict[str, object]] = []
+    print("Selected remediation steps:")
+    print(f"Combined log file: {log_path}")
+    for index, step in enumerate(steps, start=1):
+        command_info = step_config.get(step, {})
+        command = _remediation_command(step, command_info, args.log_level, log_path)
+        print(f"{index}. {step}: {' '.join(command)}")
+    if args.dry_run:
+        return
+    for step in steps:
+        command_info = step_config.get(step, {})
+        command = _remediation_command(step, command_info, args.log_level, log_path)
+        start = time.perf_counter()
+        row: dict[str, object] = {"step": step, "command": " ".join(command), "status": "running"}
+        try:
+            _check_required_inputs(root, command_info)
+            subprocess.run(command, check=True)
+            row["status"] = "completed"
+            row["elapsed_seconds"] = round(time.perf_counter() - start, 3)
+            row["outputs"] = _artifact_status(root, command_info.get("expected_outputs", []))
+        except Exception as exc:
+            row["status"] = "failed"
+            row["elapsed_seconds"] = round(time.perf_counter() - start, 3)
+            row["error"] = str(exc)
+            statuses.append(row)
+            _write_status(status_path, statuses)
+            if not continue_on_error:
+                raise
+            continue
+        statuses.append(row)
+        _write_status(status_path, statuses)
+
+
+def _select_remediation_steps(default_steps: list[str], args: argparse.Namespace) -> list[str]:
+    if args.steps:
+        steps = [step.strip() for step in args.steps.split(",") if step.strip()]
+    else:
+        steps = list(default_steps)
+    if args.skip:
+        skip = {step.strip() for step in args.skip.split(",") if step.strip()}
+        steps = [step for step in steps if step not in skip]
+    if args.from_step:
+        if args.from_step not in steps:
+            raise ValueError(f"--from-step must be one of the selected remediation steps: {args.from_step}")
+        steps = steps[steps.index(args.from_step) :]
+    unknown = [step for step in steps if step not in WORKFLOW_STEPS]
+    if unknown:
+        raise ValueError(f"Unknown remediation step(s): {', '.join(unknown)}")
+    return steps
+
+
+def _workflow_command(step: str, log_level: str, log_path: Path) -> list[str]:
+    return [sys.executable, "-m", "aml_mvp.cli", *WORKFLOW_STEPS[step], "--log-level", log_level, "--log-file", str(log_path)]
+
+
+def _remediation_command(step: str, command_info: dict[str, object], log_level: str, log_path: Path | None = None) -> list[str]:
+    command_name = str(command_info.get("command", step))
+    config_value = str(command_info.get("config", WORKFLOW_STEPS[step][2]))
+    command = [sys.executable, "-m", "aml_mvp.cli", command_name, "--config", config_value, "--log-level", log_level]
+    if log_path is not None:
+        command.extend(["--log-file", str(log_path)])
+    return command
+
+
+def _shared_workflow_log_path(args: argparse.Namespace, command_prefix: str) -> Path:
+    root = Path.cwd().resolve()
+    preset = str(getattr(args, "preset", command_prefix))
+    command_name = f"{command_prefix}-{preset}" if command_prefix == "workflow" else command_prefix
+    return resolve_log_file(command_name, root, getattr(args, "log_file", None))
+
+
+def _check_required_inputs(root: Path, command_info: dict[str, object]) -> None:
+    missing = []
+    for value in command_info.get("required_inputs", []) or []:
+        path = _resolve(root, str(value))
+        if not (path.exists() or path.with_suffix(path.suffix + ".pkl").exists()):
+            missing.append(str(path))
+    if missing:
+        raise FileNotFoundError(f"Missing required remediation input(s): {', '.join(missing)}")
+
+
+def _artifact_status(root: Path, values: object) -> list[dict[str, object]]:
+    rows = []
+    for value in values or []:
+        path = _resolve(root, str(value))
+        exists = path.exists() or path.with_suffix(path.suffix + ".pkl").exists()
+        rows.append({"path": str(path), "exists": exists})
+    return rows
+
+
+def _write_status(path: Path, statuses: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"steps": statuses}, indent=2, default=str), encoding="utf-8")
 
 
 def _resolve(root: Path, value: str) -> Path:
@@ -665,8 +975,14 @@ def _read_preferred_scored_alerts(root: Path, artifacts: dict[str, str]):
 
 def _read_csv(path: Path):
     import pandas as pd
+    from pandas.errors import EmptyDataError
 
-    return pd.read_csv(path) if path.exists() else pd.DataFrame()
+    if not path.exists() or path.stat().st_size == 0:
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path)
+    except EmptyDataError:
+        return pd.DataFrame()
 
 
 def _split_counts(df) -> dict:

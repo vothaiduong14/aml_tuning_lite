@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import os
 import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.inspection import permutation_importance
@@ -93,6 +94,8 @@ def _fit_explainer_model(train: pd.DataFrame, feature_columns: list[str], random
 
 def _compute_shap_values(model, explain_frame: pd.DataFrame, feature_columns: list[str], backend: str) -> pd.DataFrame:
     if backend != "lightgbm":
+        return pd.DataFrame()
+    if os.environ.get("AML_MVP_USE_SHAP", "0") != "1":
         return pd.DataFrame()
     try:
         import shap

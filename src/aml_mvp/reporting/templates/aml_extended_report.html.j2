@@ -29,6 +29,10 @@
   <section>
     <h2>LI-Only Stress Test</h2>
     {{ stress_table | safe }}
+    <h3>Temporal Stability</h3>
+    {{ temporal_stress_table | safe }}
+    <h3>Segment Stability</h3>
+    {{ segment_stress_table | safe }}
   </section>
 
   <section>
@@ -56,6 +60,12 @@
     <h2>Model Comparison</h2>
     {{ model_selection_table | safe }}
     {{ model_comparison_table | safe }}
+    <h3>Model Feature Counts</h3>
+    {{ model_feature_summary_table | safe }}
+    <h3>Model Settings and Hyperparameters</h3>
+    {{ model_settings_table | safe }}
+    <h3>Champion Selection Candidates</h3>
+    {{ model_candidate_table | safe }}
     <h3>Extended Selected Features</h3>
     {{ selected_features_table | safe }}
     <h3>Extended Model Tuning Trials</h3>

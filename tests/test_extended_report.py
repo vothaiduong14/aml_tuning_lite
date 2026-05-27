@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import json
 
 from aml_mvp.reporting.automated_html_report import build_extended_report_context, render_extended_report
 
@@ -36,6 +37,40 @@ def test_extended_report_renders_without_placeholders(tmp_path) -> None:
         tmp_path / "outputs/extended/priority_band_metrics.csv",
         index=False,
     )
+    mvp_metrics = {
+        "model_name": "lightgbm",
+        "evaluation_split": "test",
+        "training": {
+            "feature_selection": {"selected_features": ["feature_amount"], "force_include_feature_prefixes": []},
+            "tuning": {"enabled": True, "backend": "optuna", "trial_count": 2, "best_params": {"num_leaves": 8}},
+            "champion_selection": {"selected_model": "lightgbm", "selection_metric": "precision_at_k", "selection_k": 1000, "selection_split": "validation", "candidates": []},
+        },
+    }
+    extended_metrics = {
+        "model_name": "lightgbm",
+        "evaluation_split": "test",
+        "training": {
+            "feature_selection": {
+                "selected_features": ["feature_amount", "feature_graph_component_size_v2"],
+                "force_include_feature_prefixes": ["feature_graph_"],
+            },
+            "tuning": {"enabled": True, "backend": "optuna", "trial_count": 2, "best_params": {"num_leaves": 16}},
+            "champion_selection": {"selected_model": "lightgbm", "selection_metric": "precision_at_k", "selection_k": 1000, "selection_split": "validation", "candidates": []},
+        },
+    }
+    (tmp_path / "outputs/metrics").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "outputs/metrics/model_metrics.json").write_text(json.dumps(mvp_metrics), encoding="utf-8")
+    (tmp_path / "outputs/extended/extended_model_metrics.json").write_text(json.dumps(extended_metrics), encoding="utf-8")
+    pd.DataFrame([{"feature_name": "feature_amount", "selected": True}]).to_csv(
+        tmp_path / "outputs/metrics/selected_features.csv",
+        index=False,
+    )
+    pd.DataFrame(
+        [
+            {"feature_name": "feature_amount", "selected": True, "forced_include": False},
+            {"feature_name": "feature_graph_component_size_v2", "selected": True, "forced_include": True},
+        ]
+    ).to_csv(tmp_path / "outputs/extended/extended_selected_features.csv", index=False)
     (tmp_path / "outputs/extended/model_selection.json").write_text(
         '{"selected_model": "extended", "decision": "promote_extended"}',
         encoding="utf-8",
@@ -51,6 +86,10 @@ def test_extended_report_renders_without_placeholders(tmp_path) -> None:
             "shap_feature_importance_path": "outputs/extended/shap_feature_importance.csv",
             "model_selection_path": "outputs/extended/model_selection.json",
             "priority_band_metrics_path": "outputs/extended/priority_band_metrics.csv",
+            "model_metrics_path": "outputs/metrics/model_metrics.json",
+            "extended_model_metrics_path": "outputs/extended/extended_model_metrics.json",
+            "selected_features_path": "outputs/metrics/selected_features.csv",
+            "extended_selected_features_path": "outputs/extended/extended_selected_features.csv",
         },
     }
 
@@ -62,3 +101,7 @@ def test_extended_report_renders_without_placeholders(tmp_path) -> None:
     assert "promote_extended" in html
     assert "{{" not in html
     assert "Extended Limitations" in html
+    assert "Model Feature Counts" in html
+    assert "Model Settings and Hyperparameters" in html
+    assert "best_param.num_leaves" in html
+    assert "feature_graph_component_size_v2" in html

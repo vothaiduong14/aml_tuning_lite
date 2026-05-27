@@ -6,6 +6,8 @@ from tests.fixtures import alerts, rule_hits, transactions
 
 from aml_mvp.features.feature_matrix import build_alert_feature_matrix
 from aml_mvp.models.train import (
+    _rename_xgboost_features,
+    _xgboost_feature_name_map,
     balance_training_frame,
     select_champion_model,
     select_model_features,
@@ -39,6 +41,67 @@ def test_train_and_score_alerts_outputs_scores_and_metrics() -> None:
     assert metrics["training"]["feature_selection"]["selected_feature_count"] == len(artifact["feature_columns"])
     assert "selected_features_table" in artifact
     assert "tuning_trials" in artifact
+
+
+def test_configured_mvp_candidates_use_logistic_and_random_forest_only() -> None:
+    features, _, _ = build_alert_feature_matrix(transactions(), alerts(), rule_hits())
+
+    scored, metrics, _, _, artifact = train_and_score_alerts(
+        features,
+        {
+            "model": {
+                "model_candidates": ["logistic_regression", "random_forest"],
+                "selected_feature_count": 3,
+                "feature_selector_model": "random_forest",
+                "tuning_enabled": False,
+                "k_values": [1],
+                "champion_selection_k": 1,
+                "random_seed": 42,
+            }
+        },
+    )
+
+    assert set(artifact["models"]) == {"logistic_regression", "random_forest"}
+    assert "score_logistic_regression" in scored.columns
+    assert "score_random_forest" in scored.columns
+    assert "score_lightgbm" not in scored.columns
+    assert metrics["training"]["feature_selection"]["selected_feature_count"] <= 3
+
+
+def test_configured_extended_candidates_use_lightgbm_and_xgboost() -> None:
+    features, _, _ = build_alert_feature_matrix(transactions(), alerts(), rule_hits())
+    features["feature_graph_component_size_v2"] = [0, 1, 2, 3]
+
+    scored, metrics, _, _, artifact = train_and_score_alerts(
+        features,
+        {
+            "model": {
+                "model_candidates": ["lightgbm", "xgboost"],
+                "selected_feature_count": 6,
+                "force_include_feature_prefixes": ["feature_graph_"],
+                "tuning_enabled": False,
+                "k_values": [1],
+                "champion_selection_k": 1,
+                "random_seed": 42,
+            }
+        },
+    )
+
+    assert set(artifact["models"]) == {"lightgbm", "xgboost"}
+    assert "score_lightgbm" in scored.columns
+    assert "score_xgboost" in scored.columns
+    assert "score_logistic_regression" not in scored.columns
+    assert "feature_graph_component_size_v2" in artifact["feature_columns"]
+    assert metrics["training"]["feature_selection"]["selected_feature_count"] >= 4
+
+
+def test_xgboost_feature_name_map_removes_invalid_characters() -> None:
+    feature_columns = ["currency_pair_Rupee -> Rupee", "bucket_[0, 1)", "less<than"]
+    feature_map = _xgboost_feature_name_map(feature_columns)
+    renamed = _rename_xgboost_features(pd.DataFrame([[1, 2, 3]], columns=feature_columns), feature_map)
+
+    assert list(renamed.columns) == list(feature_map.values())
+    assert not any(any(char in column for char in "[]<") for column in renamed.columns)
 
 
 def test_balance_training_frame_preserves_positives_and_caps_negatives() -> None:

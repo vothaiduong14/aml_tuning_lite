@@ -20,6 +20,8 @@ def test_calibration_adds_scores_and_band_metrics() -> None:
     calibrated, metrics = calibrate_scores(frame, {"calibration": {"method": "isotonic"}})
 
     assert calibrated["calibrated_score"].between(0, 1).all()
+    assert calibrated["risk_score_1000"].between(0, 1000).all()
+    assert calibrated.sort_values("calibrated_score")["risk_score_1000"].is_monotonic_increasing
     assert "P1" in set(calibrated["calibrated_priority_band"])
     assert set(metrics["priority_band"]) == {"P1", "P2", "P3", "P4"}
 
@@ -39,4 +41,3 @@ def test_critical_rule_overrides_priority_band() -> None:
     )
 
     assert output.loc[output["alert_id"].eq("A1"), "calibrated_priority_band"].iloc[0] == "P1"
-

@@ -1,0 +1,77 @@
+artifacts:
+  shap_values_path: data/processed/shap_values.parquet
+  priority_alerts_path: data/processed/priority_alerts_v2.parquet
+  alert_case_mapping_path: data/processed/alert_case_mapping_v2.parquet
+  alert_reason_codes_path: outputs/metrics/alert_reason_codes.csv
+
+reason_codes:
+  top_reasons_per_alert: 3
+
+defaults:
+  unknown_feature:
+    business_reason_code: Model feature contributed to risk score
+    risk_direction: contextual
+    typology_mapping: unknown
+    plain_language_template: A model feature contributed to the alert score.
+    risk_increasing_template: A model feature increased the alert score.
+    risk_reducing_template: A model feature reduced the alert score.
+    contextual_template: A model feature provided context for the alert score.
+    investigator_note: Review transaction context and linked rule evidence.
+
+features:
+  feature_amount:
+    business_reason_code: High transaction amount
+    risk_direction: risk_increasing
+    typology_mapping: high amount
+    plain_language_template: The transaction amount is high relative to the alert population.
+    risk_increasing_template: Transaction amount increased the model risk score relative to comparable alerts.
+    risk_reducing_template: Transaction amount reduced the model risk score relative to comparable alerts.
+    contextual_template: Transaction amount was used as model context.
+    investigator_note: Review source of funds, expected account activity, and counterparties.
+  feature_rule_count:
+    business_reason_code: Multiple AML rules triggered
+    risk_direction: risk_increasing
+    typology_mapping: mixed
+    plain_language_template: Multiple rules triggered on the same alert, increasing the priority score.
+    risk_increasing_template: Multiple AML rules increased the model risk score.
+    risk_reducing_template: The rule-count signal reduced the model risk score for this alert.
+    contextual_template: Rule count was used as model context.
+    investigator_note: Review all rule evidence before disposition.
+  feature_sender_prior_unique_receivers:
+    business_reason_code: Sender distributed funds to many counterparties
+    risk_direction: risk_increasing
+    typology_mapping: fan-out / layering
+    plain_language_template: The sender has previously transferred funds to many unique receivers.
+    investigator_note: Review whether receivers are related, newly observed, or part of rapid movement.
+  feature_receiver_prior_unique_senders:
+    business_reason_code: Receiver funded by many counterparties
+    risk_direction: risk_increasing
+    typology_mapping: fan-in
+    plain_language_template: The receiver has received funds from many unique senders.
+    investigator_note: Review whether sender accounts share patterns or ownership indicators.
+  feature_graph_cycle_involvement:
+    business_reason_code: Short-cycle graph evidence
+    risk_direction: risk_increasing
+    typology_mapping: cycle
+    plain_language_template: The alert is connected to a short transaction cycle.
+    investigator_note: Review path accounts, timing, and amount consistency.
+
+rule_flags:
+  feature_rule_r4_pass_through_flag:
+    business_reason_code: Rapid pass-through activity
+    risk_direction: risk_increasing
+    typology_mapping: pass-through
+    plain_language_template: Funds appear to move through the account shortly after receipt.
+    investigator_note: Compare incoming and outgoing timing, amounts, and counterparties.
+  feature_rule_r5_fan_in_flag:
+    business_reason_code: Fan-in concentration
+    risk_direction: risk_increasing
+    typology_mapping: fan-in
+    plain_language_template: Multiple senders appear to fund one receiver.
+    investigator_note: Review shared sender attributes and transaction timing.
+  feature_rule_r6_fan_out_flag:
+    business_reason_code: Fan-out distribution
+    risk_direction: risk_increasing
+    typology_mapping: fan-out
+    plain_language_template: One sender appears to distribute funds to multiple receivers.
+    investigator_note: Review receiver relationships and downstream movement.

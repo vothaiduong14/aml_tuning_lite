@@ -18,6 +18,7 @@ def test_rule_engine_runs_r1_r2_and_consolidates_alerts() -> None:
         },
         "R1_AMOUNT": {"percentile": 0.50, "severity": "medium"},
         "R2_NOVELTY": {"require_cross_bank": True, "severity": "medium"},
+        "rule_status": {"R1_AMOUNT": "escalation", "R2_NOVELTY": "coverage"},
     }
 
     rule_hits, alerts = run_rule_engine(transactions, config)
@@ -27,6 +28,9 @@ def test_rule_engine_runs_r1_r2_and_consolidates_alerts() -> None:
     assert alerts["alert_id"].str.startswith("ALERT-").all()
     assert alerts["rule_count"].ge(1).all()
     assert alerts["rationale"].str.len().gt(0).all()
+    assert {"rule_status", "queue_eligible", "volume_control_reason"}.issubset(rule_hits.columns)
+    assert {"rule_statuses", "queue_eligible", "escalation_rule_count"}.issubset(alerts.columns)
+    assert set(rule_hits.loc[rule_hits["rule_id"].eq("R2_NOVELTY"), "queue_eligible"]) == {False}
 
 
 def test_pass_through_rule_flags_outgoing_after_recent_incoming() -> None:

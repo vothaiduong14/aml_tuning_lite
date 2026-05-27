@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -47,10 +47,12 @@ def train_and_score_alerts(
 
     metrics, top_k_metrics = evaluate_rankings(scored, k_values, champion_name)
     metrics["training"] = {
+        "model_candidates": list(models.keys()),
         "imbalance": imbalance_metadata,
         "feature_selection": {
             "enabled": bool(model_config.get("feature_selection_enabled", True)),
             "method": model_config.get("feature_selection_method", "model_importance_top_k"),
+            "selector_model": model_config.get("feature_selector_model", "lightgbm"),
             "selected_feature_count": len(selected_features),
             "selected_features": selected_features,
             "force_include_feature_prefixes": model_config.get("force_include_feature_prefixes", []),
@@ -237,20 +239,14 @@ def select_model_features(
 
     X_train = train_frame[feature_columns]
     y_train = train_frame["target"].astype(int)
-    selector = _new_lightgbm_classifier(
-        {
-            "n_estimators": 75,
-            "learning_rate": 0.05,
-            "num_leaves": 15,
-            "random_state": random_seed,
-        }
-    )
+    selector_model = str(model_config.get("feature_selector_model", "lightgbm"))
+    selector = _new_selector_classifier(selector_model, random_seed)
     sample_weight = _balanced_sample_weight(y_train)
     try:
         selector.fit(X_train, y_train, sample_weight=sample_weight)
         importances = getattr(selector, "feature_importances_", np.zeros(len(feature_columns)))
     except Exception:
-        fallback = GradientBoostingClassifier(random_state=random_seed)
+        fallback = RandomForestClassifier(n_estimators=75, random_state=random_seed, class_weight="balanced_subsample", n_jobs=-1)
         fallback.fit(X_train, y_train, sample_weight=sample_weight)
         importances = getattr(fallback, "feature_importances_", np.zeros(len(feature_columns)))
 
@@ -313,6 +309,7 @@ def _fit_models(
     model_config: dict[str, Any],
 ):
     random_seed = int(model_config.get("random_seed", 42))
+    candidates = _model_candidates(model_config)
     X_train = train_frame[feature_columns]
     y_train = train_frame["target"].astype(int)
     if y_train.nunique() < 2:
@@ -320,22 +317,63 @@ def _fit_models(
         dummy.fit(X_train, y_train)
         tuning_trials = pd.DataFrame()
         tuning_metadata = {"enabled": False, "reason": "single_class_training", "trial_count": 0, "best_params": {}}
-        return {"logistic_regression": dummy}, tuning_trials, tuning_metadata
+        return {candidates[0]: dummy}, tuning_trials, tuning_metadata
 
-    logistic = Pipeline(
-        [
-            ("scaler", StandardScaler(with_mean=False)),
-            ("model", LogisticRegression(max_iter=500, class_weight="balanced", random_state=random_seed)),
-        ]
-    )
-    logistic.fit(X_train, y_train)
-    lightgbm_model, tuning_trials, tuning_metadata = _fit_lightgbm_candidate(
-        train_frame,
-        tuning_frame_info,
-        feature_columns,
-        model_config,
-    )
-    return {"logistic_regression": logistic, "lightgbm": lightgbm_model}, tuning_trials, tuning_metadata
+    models: dict[str, Any] = {}
+    tuning_frames: list[pd.DataFrame] = []
+    tuning_metadata: dict[str, Any] = {"enabled": bool(model_config.get("tuning_enabled", True)), "models": {}}
+
+    if "logistic_regression" in candidates:
+        logistic = Pipeline(
+            [
+                ("scaler", StandardScaler(with_mean=False)),
+                ("model", LogisticRegression(max_iter=500, class_weight="balanced", random_state=random_seed, solver="liblinear")),
+            ]
+        )
+        logistic.fit(X_train, y_train)
+        models["logistic_regression"] = logistic
+        tuning_metadata["models"]["logistic_regression"] = {"enabled": False, "best_params": {"class_weight": "balanced", "solver": "liblinear"}}
+
+    if "random_forest" in candidates:
+        params = _random_forest_params(model_config, random_seed)
+        random_forest = RandomForestClassifier(**params)
+        random_forest.fit(X_train, y_train, sample_weight=_balanced_sample_weight(y_train))
+        models["random_forest"] = random_forest
+        tuning_metadata["models"]["random_forest"] = {"enabled": False, "best_params": params}
+
+    if "lightgbm" in candidates:
+        lightgbm_model, lightgbm_trials, lightgbm_metadata = _fit_lightgbm_candidate(
+            train_frame,
+            tuning_frame_info,
+            feature_columns,
+            model_config,
+        )
+        models["lightgbm"] = lightgbm_model
+        tuning_frames.append(lightgbm_trials.assign(model_name="lightgbm") if not lightgbm_trials.empty else lightgbm_trials)
+        tuning_metadata["models"]["lightgbm"] = lightgbm_metadata
+
+    if "xgboost" in candidates:
+        xgboost_model, xgboost_trials, xgboost_metadata = _fit_xgboost_candidate(
+            train_frame,
+            tuning_frame_info,
+            feature_columns,
+            model_config,
+        )
+        models["xgboost"] = xgboost_model
+        tuning_frames.append(xgboost_trials.assign(model_name="xgboost") if not xgboost_trials.empty else xgboost_trials)
+        tuning_metadata["models"]["xgboost"] = xgboost_metadata
+
+    if not models:
+        raise ValueError(f"No supported model candidates were configured: {candidates}")
+
+    tuning_trials = pd.concat([frame for frame in tuning_frames if not frame.empty], ignore_index=True) if any(not frame.empty for frame in tuning_frames) else pd.DataFrame()
+    if "lightgbm" in tuning_metadata["models"]:
+        tuning_metadata.update({key: value for key, value in tuning_metadata["models"]["lightgbm"].items() if key not in {"models"}})
+    elif "xgboost" in tuning_metadata["models"]:
+        tuning_metadata.update({key: value for key, value in tuning_metadata["models"]["xgboost"].items() if key not in {"models"}})
+    else:
+        tuning_metadata.update({"trial_count": 0, "best_params": {}})
+    return models, tuning_trials, tuning_metadata
 
 
 def _fit_lightgbm_candidate(
@@ -406,6 +444,164 @@ def _fit_lightgbm_candidate(
         "objective_fallback_used": tuning_fallback,
     }
     return model, trials, metadata
+
+
+def _fit_xgboost_candidate(
+    train_frame: pd.DataFrame,
+    tuning_frame_info: tuple[pd.DataFrame, str, bool],
+    feature_columns: list[str],
+    model_config: dict[str, Any],
+):
+    random_seed = int(model_config.get("random_seed", 42))
+    tuning_enabled = bool(model_config.get("tuning_enabled", True))
+    tuning_trials = int(model_config.get("tuning_trials", 50))
+    feature_name_map = _xgboost_feature_name_map(feature_columns)
+    X_train = _rename_xgboost_features(train_frame[feature_columns], feature_name_map)
+    y_train = train_frame["target"].astype(int)
+    tuning_frame, tuning_split, tuning_fallback = tuning_frame_info
+    X_tuning = _rename_xgboost_features(tuning_frame[feature_columns], feature_name_map)
+    sample_weight = _balanced_sample_weight(y_train)
+    if not tuning_enabled:
+        params = _default_xgboost_params(random_seed)
+        model = _new_xgboost_classifier(params)
+        model.fit(X_train, y_train, sample_weight=sample_weight)
+        return _FeatureNameAdapter(model, feature_name_map), pd.DataFrame(), {
+            "enabled": False,
+            "backend": "xgboost",
+            "trial_count": 0,
+            "best_params": params,
+            "feature_name_sanitized": True,
+        }
+
+    try:
+        import optuna
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=random_seed + 13))
+
+        def objective(trial):
+            params = {
+                "n_estimators": trial.suggest_int("n_estimators", 50, 250),
+                "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.20, log=True),
+                "max_depth": trial.suggest_int("max_depth", 2, 8),
+                "min_child_weight": trial.suggest_float("min_child_weight", 1.0, 10.0),
+                "subsample": trial.suggest_float("subsample", 0.70, 1.0),
+                "colsample_bytree": trial.suggest_float("colsample_bytree", 0.70, 1.0),
+                "reg_alpha": trial.suggest_float("reg_alpha", 0.0, 2.0),
+                "reg_lambda": trial.suggest_float("reg_lambda", 0.0, 5.0),
+                "random_state": random_seed,
+            }
+            model = _new_xgboost_classifier(params)
+            model.fit(X_train, y_train, sample_weight=sample_weight)
+            scores = _predict_positive_score(model, X_tuning)
+            return _selection_metric(
+                tuning_frame["target"],
+                pd.Series(scores, index=tuning_frame.index),
+                str(model_config.get("champion_selection_metric", "precision_at_k")),
+                int(model_config.get("champion_selection_k", 1000)),
+            )
+
+        study.optimize(objective, n_trials=tuning_trials, show_progress_bar=False)
+        best_params = dict(study.best_params)
+        best_params["random_state"] = random_seed
+        trials = study.trials_dataframe(attrs=("number", "value", "params", "state"))
+    except Exception:
+        best_params = _default_xgboost_params(random_seed)
+        trials = pd.DataFrame()
+
+    model = _new_xgboost_classifier(best_params)
+    model.fit(X_train, y_train, sample_weight=sample_weight)
+    metadata = {
+        "enabled": tuning_enabled,
+        "backend": "optuna",
+        "trial_count": int(len(trials)),
+        "best_params": best_params,
+        "objective_metric": model_config.get("champion_selection_metric", "precision_at_k"),
+        "objective_k": int(model_config.get("champion_selection_k", 1000)),
+        "objective_split": tuning_split,
+        "objective_fallback_used": tuning_fallback,
+        "feature_name_sanitized": True,
+    }
+    return _FeatureNameAdapter(model, feature_name_map), trials, metadata
+
+
+def _model_candidates(model_config: dict[str, Any]) -> list[str]:
+    configured = model_config.get("model_candidates")
+    if configured:
+        return [str(value) for value in configured]
+    return ["logistic_regression", "lightgbm"]
+
+
+def _random_forest_params(model_config: dict[str, Any], random_seed: int) -> dict[str, Any]:
+    configured = dict(model_config.get("random_forest", {}))
+    params = {
+        "n_estimators": 200,
+        "max_depth": None,
+        "min_samples_leaf": 1,
+        "class_weight": "balanced_subsample",
+        "random_state": random_seed,
+        "n_jobs": -1,
+    }
+    params.update(configured)
+    return params
+
+
+def _new_selector_classifier(selector_model: str, random_seed: int):
+    if selector_model == "random_forest":
+        return RandomForestClassifier(
+            n_estimators=75,
+            random_state=random_seed,
+            class_weight="balanced_subsample",
+            n_jobs=-1,
+        )
+    if selector_model == "xgboost":
+        return _new_xgboost_classifier(_default_xgboost_params(random_seed) | {"n_estimators": 75, "max_depth": 3})
+    return _new_lightgbm_classifier(
+        {
+            "n_estimators": 75,
+            "learning_rate": 0.05,
+            "num_leaves": 15,
+            "random_state": random_seed,
+        }
+    )
+
+
+class _FeatureNameAdapter:
+    """Adapter for estimators that require sanitized column names."""
+
+    def __init__(self, model, feature_name_map: dict[str, str]) -> None:
+        self.model = model
+        self.feature_name_map = feature_name_map
+
+    @property
+    def classes_(self):
+        return getattr(self.model, "classes_", [])
+
+    @property
+    def feature_importances_(self):
+        return getattr(self.model, "feature_importances_", [])
+
+    def predict_proba(self, frame: pd.DataFrame):
+        return self.model.predict_proba(_rename_xgboost_features(frame, self.feature_name_map))
+
+
+def _xgboost_feature_name_map(feature_columns: list[str]) -> dict[str, str]:
+    return {feature: f"f{index}_{_sanitize_xgboost_feature_name(feature)}" for index, feature in enumerate(feature_columns)}
+
+
+def _sanitize_xgboost_feature_name(feature_name: str) -> str:
+    safe = []
+    for char in str(feature_name):
+        if char.isalnum() or char == "_":
+            safe.append(char)
+        else:
+            safe.append("_")
+    return "".join(safe)
+
+
+def _rename_xgboost_features(frame: pd.DataFrame, feature_name_map: dict[str, str]) -> pd.DataFrame:
+    renamed = frame.rename(columns=feature_name_map).copy()
+    return renamed[[feature_name_map[column] for column in feature_name_map]]
 
 
 def _predict_positive_score(model, frame: pd.DataFrame):
@@ -480,6 +676,17 @@ def _new_lightgbm_classifier(params: dict[str, Any]):
         return GradientBoostingClassifier(random_state=int(params.get("random_state", 42)))
 
 
+def _new_xgboost_classifier(params: dict[str, Any]):
+    try:
+        from xgboost import XGBClassifier
+
+        model_params = _default_xgboost_params(int(params.get("random_state", 42)))
+        model_params.update(params)
+        return XGBClassifier(**model_params)
+    except Exception:
+        return GradientBoostingClassifier(random_state=int(params.get("random_state", 42)))
+
+
 def _default_lightgbm_params(random_seed: int) -> dict[str, Any]:
     return {
         "n_estimators": 100,
@@ -492,6 +699,23 @@ def _default_lightgbm_params(random_seed: int) -> dict[str, Any]:
         "reg_lambda": 0.0,
         "random_state": random_seed,
         "verbosity": -1,
+    }
+
+
+def _default_xgboost_params(random_seed: int) -> dict[str, Any]:
+    return {
+        "n_estimators": 100,
+        "learning_rate": 0.05,
+        "max_depth": 4,
+        "min_child_weight": 1.0,
+        "subsample": 1.0,
+        "colsample_bytree": 1.0,
+        "reg_alpha": 0.0,
+        "reg_lambda": 1.0,
+        "random_state": random_seed,
+        "eval_metric": "logloss",
+        "tree_method": "hist",
+        "n_jobs": -1,
     }
 
 

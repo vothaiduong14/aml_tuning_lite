@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from pandas.errors import EmptyDataError
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from aml_mvp.reporting.charts import bar_chart_svg
@@ -281,9 +282,12 @@ def _read_csv(root: Path, value: str | None) -> pd.DataFrame:
     if not value:
         return pd.DataFrame()
     path = _resolve(root, value)
-    if not path.exists():
+    if not path.exists() or path.stat().st_size == 0:
         return pd.DataFrame()
-    return pd.read_csv(path)
+    try:
+        return pd.read_csv(path)
+    except EmptyDataError:
+        return pd.DataFrame()
 
 
 def _resolve(root: Path, value: str | Path) -> Path:

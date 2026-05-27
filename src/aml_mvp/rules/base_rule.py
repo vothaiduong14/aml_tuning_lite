@@ -104,6 +104,9 @@ def empty_rule_hits() -> pd.DataFrame:
             "trigger_values_json",
             "threshold_json",
             "rationale",
+            "rule_status",
+            "queue_eligible",
+            "volume_control_reason",
             "is_laundering",
             "split",
         ]

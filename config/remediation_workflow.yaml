@@ -1,0 +1,102 @@
+workflow:
+  name: remediation
+  continue_on_error: false
+  status_path: outputs/metrics/remediation_workflow_status.json
+  default_steps:
+    - diagnose-alerts
+    - rebuild-priority-bands
+    - build-graph-v2
+    - run-graph-ablation
+    - train-extended-model
+    - compare-models
+    - consolidate-cases-v2
+    - generate-reason-codes
+    - build-extended-report
+    - build-remediation-report
+
+steps:
+  diagnose-alerts:
+    command: diagnose-alerts
+    config: config/priority_band_config.yaml
+    required_inputs:
+      - data/processed/rule_hits.parquet
+      - data/processed/alerts.parquet
+    expected_outputs:
+      - outputs/metrics/rule_alert_contribution.csv
+      - outputs/charts/rule_alert_waterfall.png
+  rebuild-priority-bands:
+    command: rebuild-priority-bands
+    config: config/priority_band_config.yaml
+    required_inputs:
+      - data/processed/alerts.parquet
+    expected_outputs:
+      - data/processed/priority_alerts_v2.parquet
+      - outputs/metrics/priority_band_summary.csv
+  build-graph-v2:
+    command: build-graph-v2
+    config: config/graph_rule_config.yaml
+    required_inputs:
+      - data/processed/base_transactions_with_splits.parquet
+    expected_outputs:
+      - data/processed/graph_features_v2.parquet
+      - data/processed/graph_rule_hits_v2.parquet
+  run-graph-ablation:
+    command: run-graph-ablation
+    config: config/graph_rule_config.yaml
+    required_inputs:
+      - data/processed/alert_features.parquet
+      - data/processed/graph_features_v2.parquet
+    expected_outputs:
+      - outputs/metrics/graph_ablation_results.csv
+  train-extended-model:
+    command: train-extended-model
+    config: config/extended_config.yaml
+    required_inputs:
+      - data/processed/extended_alert_features.parquet
+      - data/processed/graph_features_v2.parquet
+    expected_outputs:
+      - data/processed/extended_scored_alerts.parquet
+      - outputs/extended/extended_model_metrics.json
+      - outputs/extended/extended_top_k_metrics.csv
+  compare-models:
+    command: compare-models
+    config: config/extended_config.yaml
+    required_inputs:
+      - outputs/metrics/model_metrics.json
+      - outputs/extended/extended_model_metrics.json
+      - outputs/metrics/top_k_metrics.csv
+      - outputs/extended/extended_top_k_metrics.csv
+    expected_outputs:
+      - outputs/extended/model_comparison.csv
+      - outputs/extended/model_selection.json
+  consolidate-cases-v2:
+    command: consolidate-cases-v2
+    config: config/case_consolidation_config.yaml
+    required_inputs:
+      - data/processed/alerts.parquet
+      - data/processed/rule_hits.parquet
+    expected_outputs:
+      - data/processed/consolidated_cases_v2.parquet
+      - data/processed/alert_case_mapping_v2.parquet
+  generate-reason-codes:
+    command: generate-reason-codes
+    config: config/reason_code_dictionary.yaml
+    required_inputs:
+      - data/processed/priority_alerts_v2.parquet
+    expected_outputs:
+      - outputs/metrics/alert_reason_codes.csv
+  build-extended-report:
+    command: build-extended-report
+    config: config/extended_config.yaml
+    required_inputs:
+      - outputs/extended/model_comparison.csv
+      - outputs/extended/extended_model_metrics.json
+    expected_outputs:
+      - outputs/reports/aml_extended_report.html
+  build-remediation-report:
+    command: build-remediation-report
+    config: config/report_config.yaml
+    required_inputs:
+      - outputs/metrics/priority_band_summary.csv
+    expected_outputs:
+      - outputs/reports/aml_extended_remediation_report.html

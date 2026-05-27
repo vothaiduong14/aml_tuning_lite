@@ -24,6 +24,12 @@ GRAPH_FEATURE_COLUMNS = [
 ]
 
 
+def graph_feature_columns(frame: pd.DataFrame) -> list[str]:
+    """Return raw graph feature columns from a graph feature table."""
+
+    return [column for column in frame.columns if column.startswith("graph_")]
+
+
 def build_graph_features(
     transactions: pd.DataFrame,
     alerts: pd.DataFrame,
@@ -95,12 +101,35 @@ def build_graph_features(
 def merge_graph_features_into_alert_matrix(alert_features: pd.DataFrame, graph_features: pd.DataFrame) -> pd.DataFrame:
     """Return alert features with graph feature columns appended."""
 
-    merged = alert_features.merge(
-        graph_features[["transaction_id"] + GRAPH_FEATURE_COLUMNS],
+    graph_columns = [column for column in GRAPH_FEATURE_COLUMNS if column in graph_features.columns]
+    return merge_graph_feature_columns_into_alert_matrix(alert_features, graph_features, graph_columns)
+
+
+def merge_graph_feature_columns_into_alert_matrix(
+    alert_features: pd.DataFrame,
+    graph_features: pd.DataFrame,
+    graph_columns: list[str] | None = None,
+) -> pd.DataFrame:
+    """Return alert features with raw graph columns appended as feature columns.
+
+    This is intentionally generic so the extended model can consume both the
+    original graph feature table and remediation v2 graph feature table without
+    changing the model training contract.
+    """
+
+    if graph_features.empty:
+        return alert_features.copy()
+    graph_columns = graph_columns or graph_feature_columns(graph_features)
+    graph_columns = [column for column in graph_columns if column in graph_features.columns]
+    if not graph_columns:
+        return alert_features.copy()
+    existing_feature_columns = {f"feature_{column}" for column in graph_columns}
+    merged = alert_features.drop(columns=[column for column in existing_feature_columns if column in alert_features.columns]).merge(
+        graph_features[["transaction_id"] + graph_columns],
         on="transaction_id",
         how="left",
     )
-    for column in GRAPH_FEATURE_COLUMNS:
+    for column in graph_columns:
         feature_col = f"feature_{column}"
         merged[feature_col] = merged[column].fillna(0.0)
         merged = merged.drop(columns=[column])

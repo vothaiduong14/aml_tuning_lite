@@ -1,0 +1,57 @@
+artifacts:
+  scored_alerts_path: data/processed/extended_scored_alerts.parquet
+  fallback_scored_alerts_path: data/processed/scored_alerts.parquet
+  rule_hits_path: data/processed/rule_hits.parquet
+  alerts_path: data/processed/alerts.parquet
+  transactions_path: data/processed/base_transactions_with_splits.parquet
+  output_priority_alerts_path: data/processed/priority_alerts_v2.parquet
+  rule_contribution_path: outputs/metrics/rule_alert_contribution.csv
+  rule_volume_recommendations_path: outputs/metrics/rule_volume_recommendations.csv
+  waterfall_chart_path: outputs/charts/rule_alert_waterfall.png
+  band_summary_path: outputs/metrics/priority_band_summary.csv
+  capacity_simulation_path: outputs/metrics/daily_capacity_simulation.csv
+  top_k_after_band_fix_path: outputs/metrics/top_k_after_band_fix.csv
+
+scoring:
+  calibrated_probability_column: calibrated_score
+  risk_score_column: risk_score_1000
+  risk_score_method: percentile_rank
+  risk_score_min: 0
+  risk_score_max: 1000
+
+priority_bands:
+  method: capacity_rank
+  score_column: risk_score_1000
+  fallback_score_column: model_score
+  daily_capacity_assumption:
+    investigators: 3
+    alerts_per_investigator_per_day: 40
+    total_daily_capacity: 120
+  bands:
+    P1:
+      max_daily_alerts: 120
+      max_alerts: 120
+      score_percentile_floor: 99.9
+      critical_rule_override: true
+      meaning: immediate_review
+    P2:
+      max_daily_alerts: 500
+      max_alerts: 500
+      score_percentile_floor: 99.5
+      meaning: high_priority_review
+    P3:
+      score_percentile_floor: 95.0
+      meaning: thematic_sampling
+    P4:
+      score_percentile_floor: 0.0
+      meaning: retain_monitor_sample
+  critical_override_conditions:
+    enabled: true
+    min_rule_count: 2
+    min_score: 990
+    require_score_floor: true
+    allow_graph_high_risk_flag: true
+    allow_segment_p99_amount: true
+    eligible_rule_statuses: [escalation]
+    excluded_rule_ids: [GR2_CYCLE_CANDIDATE, GR2_CYCLE_CANDIDATE_V2]
+    overflow_band: P1_overflow

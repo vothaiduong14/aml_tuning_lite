@@ -116,6 +116,7 @@ def run_rule_engine(
         )
 
     rule_hits = pd.concat(hits, ignore_index=True) if hits else empty_rule_hits()
+    rule_hits = _apply_rule_status(rule_hits, config)
     logger.info("Consolidating alerts from rule_hits=%s", len(rule_hits))
     consolidate_start = time.perf_counter()
     alerts = consolidate_alerts(rule_hits)
@@ -155,6 +156,11 @@ def consolidate_alerts(rule_hits: pd.DataFrame) -> pd.DataFrame:
                 "max_rule_severity",
                 "rule_priority_score",
                 "rationale",
+                "rule_statuses",
+                "queue_eligible",
+                "escalation_rule_count",
+                "coverage_rule_count",
+                "research_rule_count",
                 "is_laundering",
                 "split",
             ]
@@ -167,6 +173,9 @@ def consolidate_alerts(rule_hits: pd.DataFrame) -> pd.DataFrame:
         rule_count = int(group["rule_id"].nunique())
         priority_score = float(SEVERITY_SCORE.get(max_severity, 0) + 0.1 * max(rule_count - 1, 0))
         triggered_rules = sorted(group["rule_id"].unique().tolist())
+        statuses = sorted(group["rule_status"].dropna().astype(str).unique().tolist()) if "rule_status" in group else []
+        queue_eligible = bool(group.get("queue_eligible", pd.Series(False, index=group.index)).fillna(False).any())
+        status_counts = group["rule_status"].fillna("").astype(str).value_counts().to_dict() if "rule_status" in group else {}
         rows.append(
             {
                 "alert_id": f"ALERT-{transaction_id}",
@@ -177,11 +186,38 @@ def consolidate_alerts(rule_hits: pd.DataFrame) -> pd.DataFrame:
                 "max_rule_severity": max_severity,
                 "rule_priority_score": priority_score,
                 "rationale": " | ".join(group["rationale"].astype(str).unique().tolist()),
+                "rule_statuses": ",".join(statuses),
+                "queue_eligible": queue_eligible,
+                "escalation_rule_count": int(status_counts.get("escalation", 0)),
+                "coverage_rule_count": int(status_counts.get("coverage", 0)),
+                "research_rule_count": int(status_counts.get("research", 0)),
                 "is_laundering": int(group["is_laundering"].max()),
                 "split": str(group["split"].iloc[0]),
             }
         )
     return pd.DataFrame(rows).sort_values(["alert_timestamp", "transaction_id"]).reset_index(drop=True)
+
+
+def _apply_rule_status(rule_hits: pd.DataFrame, config: dict) -> pd.DataFrame:
+    if rule_hits.empty:
+        for column in ["rule_status", "queue_eligible", "volume_control_reason"]:
+            if column not in rule_hits:
+                rule_hits[column] = pd.Series(dtype="object")
+        return rule_hits
+    statuses = {str(key): str(value) for key, value in dict(config.get("rule_status", {})).items()}
+    default_status = str(config.get("rules", {}).get("default_rule_status", "escalation"))
+    output = rule_hits.copy()
+    output["rule_status"] = output["rule_id"].map(statuses).fillna(default_status)
+    output["queue_eligible"] = output["rule_status"].eq("escalation")
+    output["volume_control_reason"] = output["rule_status"].map(
+        {
+            "coverage": "coverage_only_not_direct_p1_p2",
+            "research": "research_only_not_direct_p1_p2",
+            "suppress_candidate": "suppression_candidate_for_review",
+            "escalation": "",
+        }
+    ).fillna("")
+    return output
 
 
 def build_rule_performance(transactions: pd.DataFrame, rule_hits: pd.DataFrame, alerts: pd.DataFrame) -> pd.DataFrame:

@@ -44,12 +44,37 @@ def calibrate_scores(
         output["calibrated_score"] = output["model_score"].fillna(0.0)
 
     output["calibration_method"] = method_used
+    output = add_risk_score(output, config)
     output = assign_calibrated_priority_bands(output, config)
     metrics = summarize_calibrated_bands(output)
     metrics.insert(0, "calibration_method", method_used)
     if logger:
         logger.info("Score calibration completed method=%s rows=%s", method_used, len(output))
     return output, metrics
+
+
+def add_risk_score(scored_alerts: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
+    """Add a 0-1000 operational rank score without replacing calibrated probability."""
+
+    scoring = dict(config.get("scoring", {}))
+    probability_col = str(scoring.get("calibrated_probability_column", "calibrated_score"))
+    score_col = str(scoring.get("risk_score_column", "risk_score_1000"))
+    min_score = int(scoring.get("risk_score_min", 0))
+    max_score = int(scoring.get("risk_score_max", 1000))
+    source_col = probability_col if probability_col in scored_alerts else "model_score"
+
+    output = scored_alerts.copy()
+    if source_col not in output:
+        output[score_col] = min_score
+        return output
+    source = output[source_col].fillna(0.0).astype(float)
+    if len(source) <= 1:
+        output[score_col] = max_score if len(source) else pd.Series(dtype="int64")
+        return output
+    pct_rank = source.rank(method="average", pct=True)
+    scaled = min_score + pct_rank * (max_score - min_score)
+    output[score_col] = scaled.round().clip(min_score, max_score).astype(int)
+    return output
 
 
 def write_calibration_outputs(
@@ -82,4 +107,3 @@ def _sigmoid_scores(output: pd.DataFrame, calibration_frame: pd.DataFrame) -> pd
 def _resolve(root: Path, value: str) -> Path:
     path = Path(value)
     return path if path.is_absolute() else (root / path).resolve()
-

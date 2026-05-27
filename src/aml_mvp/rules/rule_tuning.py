@@ -59,9 +59,14 @@ def tune_r1_amount(
     logger = logger or logging.getLogger(__name__)
     rule_config = dict(config.get("R1_AMOUNT", {}))
     tuning_config = dict(config.get("tuning", {}))
-    grid = [float(value) for value in rule_config.get("percentile_grid", [0.70, 0.85, 0.90, 0.95, 0.99])]
+    candidate_grids = dict(tuning_config.get("candidate_grids", {}))
+    r1_grid = dict(candidate_grids.get("R1_AMOUNT", {}))
+    grid = [
+        float(value)
+        for value in r1_grid.get("percentiles", rule_config.get("percentile_grid", [0.70, 0.85, 0.90, 0.95, 0.99]))
+    ]
     evaluation_split = str(tuning_config.get("split", "validation"))
-    min_recall_floor = float(tuning_config.get("min_recall_floor", 0.80))
+    min_recall_floor = float(tuning_config.get("recall_floor", tuning_config.get("min_recall_floor", 0.80)))
     max_alert_rate = float(tuning_config.get("max_alert_rate", 1.00))
 
     logger.info(
@@ -125,6 +130,7 @@ def tune_r1_amount(
                 "f1": metrics.f1,
                 "meets_recall_floor": metrics.recall >= min_recall_floor,
                 "meets_alert_rate_cap": metrics.alert_rate <= max_alert_rate,
+                "objective": tuning_config.get("objective", "minimize_alert_rate_with_recall_guardrail"),
             }
         )
 
@@ -196,6 +202,18 @@ def write_tuning_outputs(
     selected_thresholds.to_csv(selected_path, index=False)
     audit_path.write_text(json.dumps(audit, indent=2, default=str), encoding="utf-8")
     tuned_config_path.write_text(json.dumps(audit["tuned_config"], indent=2, default=str), encoding="utf-8")
+    constrained_candidates_path = artifacts.get("constrained_tuning_candidates_path")
+    if constrained_candidates_path:
+        path = _resolve(root, constrained_candidates_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        candidates.to_csv(path, index=False)
+        outputs["constrained_tuning_candidates"] = path
+    constrained_selected_path = artifacts.get("constrained_selected_thresholds_path")
+    if constrained_selected_path:
+        path = _resolve(root, constrained_selected_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        selected_thresholds.to_csv(path, index=False)
+        outputs["constrained_selected_thresholds"] = path
 
     outputs["tuning_candidates"] = candidates_path
     outputs["selected_thresholds"] = selected_path

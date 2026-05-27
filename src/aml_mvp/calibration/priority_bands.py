@@ -15,7 +15,10 @@ def assign_calibrated_priority_bands(scored_alerts: pd.DataFrame, config: dict[s
     critical_rules = set(calibration.get("critical_rules", []))
 
     output = scored_alerts.copy()
-    score_col = "calibrated_score" if "calibrated_score" in output else "model_score"
+    scoring = dict(config.get("scoring", {}))
+    score_col = str(scoring.get("calibrated_probability_column", "calibrated_score"))
+    if score_col not in output:
+        score_col = "calibrated_score" if "calibrated_score" in output else "model_score"
     scores = output[score_col].fillna(0.0)
     thresholds = {
         "P1": float(scores.quantile(p1_quantile)) if len(scores) else 1.0,
@@ -53,4 +56,3 @@ def summarize_calibrated_bands(alerts: pd.DataFrame) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
-

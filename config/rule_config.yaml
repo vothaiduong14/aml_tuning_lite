@@ -8,6 +8,8 @@ artifacts:
   selected_thresholds_path: outputs/metrics/selected_thresholds.csv
   tuning_audit_path: outputs/metrics/tuning_audit_log.json
   tuned_rule_config_path: outputs/metrics/tuned_rule_config.json
+  constrained_tuning_candidates_path: outputs/metrics/constrained_tuning_candidates.csv
+  constrained_selected_thresholds_path: outputs/metrics/constrained_selected_thresholds.csv
 
 rules:
   enabled: [R1_AMOUNT, R2_NOVELTY, R3_VELOCITY, R4_PASS_THROUGH, R5_FAN_IN, R6_FAN_OUT]
@@ -17,6 +19,16 @@ rules:
   min_segment_positives: 5
   severity_scores: [low:1, medium:2, high:3, critical:4]
   severity_order: [low, medium, high, critical]
+
+rule_status:
+  R1_AMOUNT: escalation
+  R2_NOVELTY: coverage
+  R3_VELOCITY: escalation
+  R4_PASS_THROUGH: escalation
+  R5_FAN_IN: escalation
+  R6_FAN_OUT: escalation
+  GR2_CYCLE_CANDIDATE: research
+  GR2_CYCLE_CANDIDATE_V2: research
 
 R1_AMOUNT:
   percentile: 0.95
@@ -53,5 +65,17 @@ R6_FAN_OUT:
 tuning:
   rules: [R1_AMOUNT]
   split: validation
+  objective: minimize_alert_rate_with_recall_guardrail
   min_recall_floor: 0.80
+  recall_floor: 0.80
   max_alert_rate: 1.00
+  preserve_rule_family_recall: true
+  candidate_grids:
+    R1_AMOUNT:
+      percentiles: [0.95, 0.975, 0.99, 0.995]
+    R3_VELOCITY:
+      transaction_count_thresholds: [3, 5, 7, 10]
+      amount_percentiles: [0.75, 0.90, 0.95]
+    R5_FAN_IN:
+      unique_sender_thresholds: [3, 5, 10]
+      amount_percentiles: [0.75, 0.90, 0.95]

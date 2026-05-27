@@ -1,0 +1,26 @@
+artifacts:
+  transactions_path: data/processed/base_transactions_with_splits.parquet
+  alerts_path: data/processed/alerts.parquet
+  rule_hits_path: data/processed/rule_hits.parquet
+  graph_rule_hits_path: data/processed/graph_rule_hits_v2.parquet
+  scored_alerts_path: data/processed/extended_scored_alerts.parquet
+  fallback_scored_alerts_path: data/processed/scored_alerts.parquet
+  output_cases_path: data/processed/consolidated_cases_v2.parquet
+  alert_case_mapping_path: data/processed/alert_case_mapping_v2.parquet
+  network_clusters_path: data/processed/network_clusters_v2.parquet
+  case_quality_metrics_path: outputs/metrics/case_quality_metrics.csv
+  mega_case_diagnostics_path: outputs/metrics/mega_case_diagnostics.csv
+  case_typology_summary_path: outputs/metrics/case_typology_summary.csv
+
+case_consolidation:
+  max_alerts_per_case: 100
+  max_accounts_per_case: 50
+  max_transactions_per_case: 200
+  max_days_per_case: 7
+  max_component_size_for_auto_case: 1000
+  max_component_size_for_case: 1000
+  split_large_components: true
+  network_cluster_only_above_threshold: true
+  pair_window_hours: 72
+  same_account_typology_window_hours: 168
+  time_split_hours_for_mega_components: 24
