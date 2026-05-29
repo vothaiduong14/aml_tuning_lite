@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AML Detection and Operations Effectiveness Report</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5c6473;
+      --line: #d9dee8;
+      --paper: #ffffff;
+      --bg: #f5f7fb;
+      --blue: #1f5f99;
+      --teal: #14806f;
+      --amber: #b16a00;
+      --red: #b33430;
+      --green: #2b7b44;
+      --slate: #3b4658;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font: 14px/1.45 Arial, Helvetica, sans-serif;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 22px 48px;
+    }
+
+    header {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 26px;
+      margin-bottom: 18px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 28px;
+      line-height: 1.15;
+    }
+
+    h2 {
+      font-size: 19px;
+      margin-bottom: 12px;
+    }
+
+    h3 {
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin: 8px 0;
+    }
+
+    .meta {
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .summary {
+      margin-top: 18px;
+      max-width: 920px;
+      font-size: 16px;
+    }
+
+    section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      margin: 16px 0;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid.cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid.cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kpi {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcff;
+      min-height: 112px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      font-weight: 700;
+    }
+
+    .value {
+      font-size: 26px;
+      font-weight: 700;
+      margin-top: 8px;
+      color: var(--ink);
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+
+    .green {
+      color: var(--green);
+      background: #eaf5ee;
+      border-color: #b9dbc5;
+    }
+
+    .red {
+      color: var(--red);
+      background: #faeceb;
+      border-color: #e1b5b2;
+    }
+
+    .amber {
+      color: var(--amber);
+      background: #fff4df;
+      border-color: #e8c37c;
+    }
+
+    .blue {
+      color: var(--blue);
+      background: #e9f2fb;
+      border-color: #b8d2ec;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      background: #f7f9fd;
+    }
+
+    .bar-wrap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcff;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 138px 1fr 70px;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    .bar-track {
+      height: 13px;
+      background: #e8edf5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar {
+      height: 100%;
+      background: var(--blue);
+      border-radius: 999px;
+    }
+
+    .bar.teal {
+      background: var(--teal);
+    }
+
+    .bar.amber {
+      background: var(--amber);
+    }
+
+    .bar.red {
+      background: var(--red);
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 8px;
+      background: #fbfcff;
+      color: var(--slate);
+      font-size: 12px;
+    }
+
+    .callout {
+      border-left: 4px solid var(--blue);
+      background: #f3f8fd;
+      padding: 12px 14px;
+      margin-top: 12px;
+    }
+
+    .risk {
+      border-left-color: var(--red);
+      background: #fff6f5;
+    }
+
+    .two-col-list {
+      columns: 2;
+      column-gap: 28px;
+      padding-left: 18px;
+    }
+
+    @media (max-width: 820px) {
+      main {
+        padding: 16px 12px 36px;
+      }
+
+      .grid.cols-4,
+      .grid.cols-3,
+      .grid.cols-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .bar-row {
+        grid-template-columns: 110px 1fr 56px;
+      }
+
+      .two-col-list {
+        columns: 1;
+      }
+
+      h1 {
+        font-size: 23px;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      main {
+        max-width: none;
+        padding: 0;
+      }
+
+      section,
+      header {
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <div class="label">Business report</div>
+      <h1>AML Detection and Operations Effectiveness</h1>
+      <p class="meta">Based on local report artifacts for LI-Small. Source data period: 2022-09-01 to 2022-09-17.
+        Prepared from outputs generated in this workspace.</p>
+      <p class="summary">
+        The rule and model stack is effective at finding known laundering exposure, but the raw alert volume is not
+        operationally ready.
+        The extended LightGBM model materially improves alert ranking, while the final governance decision remains
+        constrained by the overall alert-rate gate.
+      </p>
+    </header>
+
+    <section>
+      <h2>Executive View</h2>
+      <div class="grid cols-4">
+        <div class="kpi">
+          <div class="label">Transactions reviewed</div>
+          <div class="value">6.92M</div>
+          <p class="note">3,565 labelled positives; base label rate 0.0515%.</p>
+        </div>
+        <div class="kpi">
+          <div class="label">Raw rule alerts</div>
+          <div class="value">3.37M</div>
+          <p class="note">48.6% of transactions alert, creating the primary operational issue.</p>
+        </div>
+        <div class="kpi">
+          <div class="label">Known positives covered</div>
+          <div class="value">91.4%</div>
+          <p class="note">3,257 of 3,565 labelled laundering transactions appear in alerts.</p>
+        </div>
+        <div class="kpi">
+          <div class="label">Final readiness</div>
+          <div class="value"><span class="status red">Not promotion ready</span></div>
+          <p class="note">All gates passed except alert rate.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Management conclusion:</strong> use the extended model for prioritisation and investigation queue
+        design, but do not treat the current rule layer as production-ready without further volume remediation.
+      </div>
+    </section>
+
+    <section>
+      <h2>Methodology</h2>
+      <div class="grid cols-2">
+        <div>
+          <h3>Rules Used</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Rule</th>
+                <th>Business logic</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>R1 Amount</td>
+                <td>Segmented high-value transaction by payment format and currency pair.</td>
+                <td>Escalation</td>
+              </tr>
+              <tr>
+                <td>R2 Novelty</td>
+                <td>New counterparty and cross-bank novelty pattern.</td>
+                <td>Coverage</td>
+              </tr>
+              <tr>
+                <td>R3 Velocity</td>
+                <td>Five or more transactions in 24 hours with high amount threshold.</td>
+                <td>Escalation</td>
+              </tr>
+              <tr>
+                <td>R4 Pass-through</td>
+                <td>Rapid in/out flow within 24 hours with in-out ratio at least 0.80.</td>
+                <td>Escalation</td>
+              </tr>
+              <tr>
+                <td>R5 Fan-in</td>
+                <td>Five or more unique senders in 24 hours with high amount threshold.</td>
+                <td>Escalation</td>
+              </tr>
+              <tr>
+                <td>R6 Fan-out</td>
+                <td>Five or more unique receivers in 24 hours and at least two prior unique senders.</td>
+                <td>Escalation</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Tuning and Model Objective</h3>
+          <p>
+            Rule tuning was applied to R1 Amount on the validation split. Candidate percentiles were 95.0%, 97.5%,
+            99.0%, and 99.5%.
+            The objective was to reduce alert rate subject to an 80% recall guardrail. None of the candidates met the
+            recall floor, so the 95.0% threshold was retained because it gave the highest recall.
+          </p>
+          <p>
+            The model objective was alert-level prioritisation: rank already-alerted transactions by likelihood of
+            <code>is_laundering</code>, optimising Precision@1,000 on validation.
+            LightGBM and XGBoost were tuned with Optuna for 50 trials each; class imbalance was handled by preserving
+            all positives and sampling negatives at a 10:1 ratio.
+          </p>
+          <p>
+            The selected extended model was LightGBM, with 53 selected features out of 229 candidates. The model is
+            intended to prioritise review, not auto-close or suppress alerts.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Features and Meaning</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Feature group</th>
+            <th>Selected signals</th>
+            <th>Business meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Transaction value</td>
+            <td>Amount, log amount, cross-bank flag</td>
+            <td>Size and cross-institution movement of the alert transaction.</td>
+          </tr>
+          <tr>
+            <td>Rule indicators</td>
+            <td>R1, R2, R3, R6 flags, rule count, max severity, rule priority score</td>
+            <td>Which typologies fired and how severe or concentrated the alert is.</td>
+          </tr>
+          <tr>
+            <td>Account and counterparty history</td>
+            <td>Sender prior transaction count, receiver prior transaction count, sender unique receivers, receiver
+              unique senders, pair prior count</td>
+            <td>Point-in-time history showing repeated activity, new relationships, or unusual account connectivity
+              before the alert.</td>
+          </tr>
+          <tr>
+            <td>Payment format</td>
+            <td>ACH, Bitcoin, Reinvestment, Cheque, Credit Card, Cash</td>
+            <td>Channel-specific risk patterns and operating behaviour.</td>
+          </tr>
+          <tr>
+            <td>Currency pair</td>
+            <td>Major same-currency pairs plus selected cross-currency pairs and missing category</td>
+            <td>Currency corridor behaviour and segment-specific laundering concentration.</td>
+          </tr>
+          <tr>
+            <td>Graph/network</td>
+            <td>Component size, sender/receiver degree, weighted degree, PageRank, v2 graph variants</td>
+            <td>Network concentration and account centrality using only transactions observed before the alert
+              timestamp.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="chips">
+        <span class="chip">Top SHAP: amount</span>
+        <span class="chip">Top SHAP: sender prior transaction count</span>
+        <span class="chip">Top SHAP: sender unique receivers</span>
+        <span class="chip">Top model importance: amount</span>
+        <span class="chip">Top model importance: receiver history</span>
+        <span class="chip">Forced inclusion: graph context</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Detection Effectiveness</h2>
+      <div class="grid cols-2">
+        <div class="bar-wrap">
+          <h3>Model Precision at Review Depth</h3>
+          <div class="bar-row"><span>Top 100</span>
+            <div class="bar-track">
+              <div class="bar teal" style="width:43%"></div>
+            </div><strong>43.0%</strong>
+          </div>
+          <div class="bar-row"><span>Top 500</span>
+            <div class="bar-track">
+              <div class="bar teal" style="width:25.2%"></div>
+            </div><strong>25.2%</strong>
+          </div>
+          <div class="bar-row"><span>Top 1,000</span>
+            <div class="bar-track">
+              <div class="bar teal" style="width:17.1%"></div>
+            </div><strong>17.1%</strong>
+          </div>
+          <div class="bar-row"><span>Top 5,000</span>
+            <div class="bar-track">
+              <div class="bar teal" style="width:6.32%"></div>
+            </div><strong>6.3%</strong>
+          </div>
+          <p class="note">Extended LightGBM test results. Precision@1,000 improved from 9.1% under MVP to 17.1%, an 8.0
+            percentage point uplift.</p>
+        </div>
+        <div class="bar-wrap">
+          <h3>Rule Recall on Test Split</h3>
+          <div class="bar-row"><span>Any rule</span>
+            <div class="bar-track">
+              <div class="bar" style="width:88.9%"></div>
+            </div><strong>88.9%</strong>
+          </div>
+          <div class="bar-row"><span>R2 Novelty</span>
+            <div class="bar-track">
+              <div class="bar" style="width:62.9%"></div>
+            </div><strong>62.9%</strong>
+          </div>
+          <div class="bar-row"><span>R4 Pass-through</span>
+            <div class="bar-track">
+              <div class="bar" style="width:27.0%"></div>
+            </div><strong>27.0%</strong>
+          </div>
+          <div class="bar-row"><span>R3 Velocity</span>
+            <div class="bar-track">
+              <div class="bar" style="width:20.8%"></div>
+            </div><strong>20.8%</strong>
+          </div>
+          <div class="bar-row"><span>R6 Fan-out</span>
+            <div class="bar-track">
+              <div class="bar" style="width:18.6%"></div>
+            </div><strong>18.6%</strong>
+          </div>
+          <p class="note">Rules provide broad coverage, but individual precision is low. Test precision for Any Rule is
+            0.156%.</p>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Measure</th>
+            <th>MVP</th>
+            <th>Extended model</th>
+            <th>Interpretation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>PR-AUC</td>
+            <td>0.0583</td>
+            <td>0.1078</td>
+            <td>Extended model materially improves rare-event ranking.</td>
+          </tr>
+          <tr>
+            <td>ROC-AUC</td>
+            <td>0.9321</td>
+            <td>0.9374</td>
+            <td>Both models separate risk well; extended is marginally better.</td>
+          </tr>
+          <tr>
+            <td>Precision@1,000</td>
+            <td>9.1%</td>
+            <td>17.1%</td>
+            <td>Extended model almost doubles investigator hit rate at the key operating depth.</td>
+          </tr>
+          <tr>
+            <td>Recall@1,000</td>
+            <td>11.1%</td>
+            <td>20.8%</td>
+            <td>Extended model captures more known positives within the same review capacity.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout risk">
+        <strong>Detection caveat:</strong> temporal stress is uneven. Window B performs strongly at Precision@1,000 of
+        26.5%, while Window A falls to 2.0%. Segment results also vary, with ACH strongest at Precision@100 of 56.0% and
+        several channels showing no labelled positives.
+      </div>
+    </section>
+
+    <section>
+      <h2>Operational Effectiveness</h2>
+      <div class="grid cols-3">
+        <div class="kpi">
+          <div class="label">P1 controlled queue</div>
+          <div class="value">120</div>
+          <p class="note">Final v2 P1 queue is sized to daily capacity and has 50.8% precision.</p>
+        </div>
+        <div class="kpi">
+          <div class="label">P1 overflow</div>
+          <div class="value">10,172</div>
+          <p class="note">Overflow precision is 7.33%, requiring a separate handling strategy.</p>
+        </div>
+        <div class="kpi">
+          <div class="label">Case reduction</div>
+          <div class="value">99.98%</div>
+          <p class="note">Consolidation reduces alert handling into 576 capped cases.</p>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Operational area</th>
+            <th>Status</th>
+            <th>Evidence</th>
+            <th>Business assessment</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>P1 sizing</td>
+            <td><span class="status green">Green</span></td>
+            <td>120 P1 alerts, aligned to daily capacity assumption.</td>
+            <td>Workable for a small investigation team.</td>
+          </tr>
+          <tr>
+            <td>Alert rate</td>
+            <td><span class="status red">Red</span></td>
+            <td>3.37M alerts; 48.6% transaction alert rate.</td>
+            <td>Raw rules remain too noisy for production-scale operations.</td>
+          </tr>
+          <tr>
+            <td>Case consolidation</td>
+            <td><span class="status green">Green</span></td>
+            <td>576 cases, average 22.3 alerts per case, max 25 alerts per case, case recall 100%.</td>
+            <td>Effective case packaging for review workflow.</td>
+          </tr>
+          <tr>
+            <td>Explainability</td>
+            <td><span class="status green">Green</span></td>
+            <td>SHAP and reason-code outputs generated.</td>
+            <td>Suitable for analyst-facing prioritisation rationale.</td>
+          </tr>
+          <tr>
+            <td>Stress testing</td>
+            <td><span class="status green">Green</span></td>
+            <td>Temporal and segment stress outputs generated.</td>
+            <td>Monitoring is in place, but observed instability needs governance attention.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Rule Remediation Priorities</h2>
+      <div class="bar-wrap">
+        <h3>Rule Precision and Recommended Action</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Unique alerts</th>
+              <th>Label count</th>
+              <th>Precision</th>
+              <th>Recommended action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>R2 Novelty</td>
+              <td>867,807</td>
+              <td>2,375</td>
+              <td>0.274%</td>
+              <td>Downgrade to coverage-first until precision improves.</td>
+            </tr>
+            <tr>
+              <td>R4 Pass-through</td>
+              <td>1,861,144</td>
+              <td>912</td>
+              <td>0.049%</td>
+              <td>Tighten due to high volume and very low precision.</td>
+            </tr>
+            <tr>
+              <td>R3 Velocity</td>
+              <td>693,260</td>
+              <td>838</td>
+              <td>0.121%</td>
+              <td>Downgrade to coverage-first until precision improves.</td>
+            </tr>
+            <tr>
+              <td>R6 Fan-out</td>
+              <td>538,263</td>
+              <td>521</td>
+              <td>0.097%</td>
+              <td>Tighten due to high volume and overlap.</td>
+            </tr>
+            <tr>
+              <td>R1 Amount</td>
+              <td>321,112</td>
+              <td>106</td>
+              <td>0.033%</td>
+              <td>Tighten high-volume low-precision trigger.</td>
+            </tr>
+            <tr>
+              <td>R5 Fan-in</td>
+              <td>18,808</td>
+              <td>42</td>
+              <td>0.223%</td>
+              <td>Downgrade to coverage-first until precision improves.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Conclusion</h2>
+      <p>
+        The AML detection framework is directionally strong for prioritisation: the extended LightGBM model improves the
+        ability to concentrate known laundering cases in the top review queues, and the final P1 queue is operationally
+        sized with high precision.
+      </p>
+      <p>
+        The key weakness is operational volume. The deterministic rule layer alerts on nearly half of all transactions,
+        and several rules contribute large volumes at very low precision. This prevents full promotion readiness despite
+        successful model, explainability, case consolidation, and stress-testing gates.
+      </p>
+      <p>
+        Recommended decision: keep the extended model as the preferred prioritisation challenger and continue
+        remediation before production promotion. The next management action should be rule-volume remediation,
+        especially R4, R6, and R1, plus formal handling of P1 overflow and ongoing temporal stability monitoring.
+      </p>
+    </section>
+  </main>
+</body>
+
+</html>
